@@ -788,52 +788,52 @@ async function loadFromBrowserStorage() {
     return;
   }
 
+  const toTime = data => {
+    const ms = Date.parse(data?.lastUpdated || '');
+    return Number.isNaN(ms) ? 0 : ms;
+  };
+
+  let staticData = null;
   if (IS_GITHUB_PAGES) {
-    const staticData = await fetchStaticScores();
-    if (staticData?.items) {
-      applyData(staticData);
-      setInputsFromData(staticData);
-      setStoreBadge('● 保存先: scores.json（GitHub）+ IndexedDB');
-      setServerBadge('● GitHub Pages: scores.jsonを読込');
-      update();
-      return;
-    }
+    staticData = await fetchStaticScores();
     setServerBadge('● GitHub Pages: 同期APIなし（ブラウザ保存のみ）');
   }
 
+  let idbData = null;
   try {
-    const latest = await idbGet(DB_KEY_LATEST);
-    if (latest?.items) {
-      applyData(latest);
-      setInputsFromData(latest);
-      if (latest.lastUpdated) {
-        const t = new Date(latest.lastUpdated);
-        const ts = `${t.getFullYear()}/${t.getMonth()+1}/${t.getDate()} `
-                 + `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
-        document.getElementById('saveBadge').textContent = `● 自動保存: ${ts}`;
-      }
-      setStoreBadge('● 保存先: IndexedDB');
-      update();
-      return;
-    }
+    idbData = await idbGet(DB_KEY_LATEST);
   } catch (e) {
     setStoreBadge('● 保存先: localStorage(フォールバック)');
   }
 
+  let localData = null;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      setStoreBadge('● 保存先: IndexedDB');
-      return;
+    if (raw) {
+      localData = JSON.parse(raw);
     }
-    const data = JSON.parse(raw);
-    applyData(data);
-    setInputsFromData(data);
-    update();
-    await autoSave({ forceHistory: true });
   } catch (e) {
-    // use defaults
+    localData = null;
   }
+
+  const candidates = [staticData, idbData, localData].filter(d => d?.items);
+  if (candidates.length > 0) {
+    candidates.sort((a, b) => toTime(b) - toTime(a));
+    const selected = candidates[0];
+    applyData(selected);
+    setInputsFromData(selected);
+    if (selected === idbData) {
+      setStoreBadge('● 保存先: IndexedDB（前回編集を復元）');
+    } else if (selected === localData) {
+      setStoreBadge('● 保存先: localStorage（前回編集を復元）');
+    } else {
+      setStoreBadge('● 保存先: scores.json（GitHub）');
+    }
+    update();
+    return;
+  }
+
+  setStoreBadge('● 保存先: IndexedDB');
 }
 
 async function restoreFromHistory() {
