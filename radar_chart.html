@@ -44,6 +44,72 @@
       margin-bottom: 18px;
     }
 
+    .simple-app {
+      max-width: 1120px;
+      margin: 0 auto 16px;
+      background: var(--bg-1);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 10px 24px #2b3f2a14;
+      padding: 14px;
+    }
+    .simple-app h2 {
+      font-size: 0.92rem;
+      color: #23404d;
+      margin-bottom: 10px;
+      letter-spacing: 0.04em;
+    }
+    .simple-form {
+      display: grid;
+      grid-template-columns: 90px 1.6fr 150px 1fr 110px;
+      gap: 8px;
+      align-items: stretch;
+      margin-bottom: 10px;
+    }
+    .simple-input {
+      width: 100%;
+      border: 1px solid #c5d2ca;
+      border-radius: 8px;
+      background: #fff;
+      color: #2b3a44;
+      font-size: 0.8rem;
+      padding: 8px;
+    }
+    .simple-input.memo {
+      min-height: 38px;
+      resize: vertical;
+    }
+    .simple-list {
+      display: grid;
+      gap: 8px;
+      max-height: 54vh;
+      overflow: auto;
+      padding-right: 2px;
+    }
+    .simple-item {
+      display: grid;
+      grid-template-columns: 90px 1.6fr 150px 1fr auto;
+      gap: 8px;
+      align-items: start;
+      background: #f9fbf8;
+      border: 1px solid #dbe2d8;
+      border-radius: 10px;
+      padding: 8px;
+    }
+    .simple-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .simple-empty {
+      background: #f4f7f4;
+      border: 1px dashed #cad5ca;
+      border-radius: 10px;
+      color: #5b6775;
+      padding: 12px;
+      font-size: 0.82rem;
+    }
+
     /* ---- Toolbar ---- */
     .toolbar {
       display: flex;
@@ -59,6 +125,12 @@
       background: color-mix(in srgb, var(--bg-1) 88%, var(--accent) 12%);
       border: 1px solid var(--line);
       border-radius: 14px;
+    }
+
+    .journey-top,
+    .level-guide,
+    .main-layout {
+      display: none;
     }
     .btn {
       padding: 7px 18px;
@@ -473,6 +545,10 @@
     }
 
     @media (max-width: 820px) {
+      .simple-form,
+      .simple-item {
+        grid-template-columns: 1fr;
+      }
       .level-grid {
         grid-template-columns: 1fr;
       }
@@ -519,6 +595,18 @@
 
 <h1>Growth Journey Studio</h1>
 <p class="subtitle">Infinite goals, visible progress. Track milestones and momentum over time.</p>
+
+<section class="simple-app">
+  <h2>Action Log (レベル / 活動内容 / 完了日 / メモ)</h2>
+  <div class="simple-form">
+    <input class="simple-input" id="simple-level" type="number" min="1" max="11" placeholder="レベル" />
+    <input class="simple-input" id="simple-activity" type="text" placeholder="活動内容" />
+    <input class="simple-input" id="simple-date" type="date" />
+    <textarea class="simple-input memo" id="simple-memo" placeholder="メモ"></textarea>
+    <button class="btn btn-export" onclick="addActionItem()">追加</button>
+  </div>
+  <div class="simple-list" id="simpleList"></div>
+</section>
 
 <div class="toolbar">
   <button class="btn btn-export" id="applyEditsBtn" onclick="applyEditsNow()">✅ 編集を反映</button>
@@ -852,6 +940,7 @@ const items = [
 ];
 let progressEvents = [];
 let milestoneRecords = {};
+let actionItems = [];
 
 function escHtml(value) {
   return String(value ?? '')
@@ -896,6 +985,88 @@ function addProgressEvent(item, message, source = 'system') {
     source,
   });
   progressEvents = progressEvents.slice(0, 200);
+}
+
+function renderSimpleList() {
+  const list = document.getElementById('simpleList');
+  if (!list) return;
+  if (!Array.isArray(actionItems) || actionItems.length === 0) {
+    list.innerHTML = '<div class="simple-empty">まだアクションはありません。上の入力欄から追加してください。</div>';
+    return;
+  }
+  list.innerHTML = actionItems.map((row, idx) => `
+    <div class="simple-item">
+      <input class="simple-input" type="number" min="1" max="11" id="row-level-${idx}" value="${Number.isFinite(row.level) ? row.level : ''}" />
+      <input class="simple-input" type="text" id="row-activity-${idx}" value="${escHtml(row.activity || '')}" />
+      <input class="simple-input" type="date" id="row-date-${idx}" value="${escHtml(row.completedAt || '')}" />
+      <textarea class="simple-input memo" id="row-memo-${idx}">${escHtml(row.memo || '')}</textarea>
+      <div class="simple-actions">
+        <button class="mini-btn" onclick="saveActionRow(${idx})">保存</button>
+        <button class="mini-btn" onclick="deleteActionRow(${idx})">削除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function addActionItem() {
+  const levelInput = document.getElementById('simple-level');
+  const activityInput = document.getElementById('simple-activity');
+  const dateInput = document.getElementById('simple-date');
+  const memoInput = document.getElementById('simple-memo');
+  const rawLevel = Number(levelInput?.value);
+  const level = Number.isFinite(rawLevel) ? Math.max(1, Math.min(11, Math.round(rawLevel))) : null;
+  const activity = (activityInput?.value || '').trim();
+  const completedAt = (dateInput?.value || '').trim();
+  const memo = (memoInput?.value || '').trim();
+  if (!level || !activity) {
+    alert('レベルと活動内容を入力してください。');
+    return;
+  }
+  actionItems.unshift({
+    level,
+    activity,
+    completedAt,
+    memo,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+  actionItems = actionItems.slice(0, 300);
+  if (levelInput) levelInput.value = '';
+  if (activityInput) activityInput.value = '';
+  if (dateInput) dateInput.value = '';
+  if (memoInput) memoInput.value = '';
+  renderSimpleList();
+  await autoSave({ forceHistory: true });
+}
+
+async function saveActionRow(idx) {
+  const row = actionItems[idx];
+  if (!row) return;
+  const rawLevel = Number(document.getElementById(`row-level-${idx}`)?.value);
+  const level = Number.isFinite(rawLevel) ? Math.max(1, Math.min(11, Math.round(rawLevel))) : null;
+  const activity = (document.getElementById(`row-activity-${idx}`)?.value || '').trim();
+  const completedAt = (document.getElementById(`row-date-${idx}`)?.value || '').trim();
+  const memo = (document.getElementById(`row-memo-${idx}`)?.value || '').trim();
+  if (!level || !activity) {
+    alert('レベルと活動内容は必須です。');
+    return;
+  }
+  actionItems[idx] = {
+    ...row,
+    level,
+    activity,
+    completedAt,
+    memo,
+    updatedAt: new Date().toISOString(),
+  };
+  renderSimpleList();
+  await autoSave({ forceHistory: true });
+}
+
+async function deleteActionRow(idx) {
+  actionItems = actionItems.filter((_, i) => i !== idx);
+  renderSimpleList();
+  await autoSave({ forceHistory: true });
 }
 
 function switchTopPanel(panelId) {
@@ -1795,7 +1966,18 @@ function applyData(data) {
       updatedAt: v.updatedAt || '',
     }]));
   }
+  if (Array.isArray(data?.actionItems)) {
+    actionItems = data.actionItems.map(r => ({
+      level: Number.isFinite(Number(r.level)) ? Math.max(1, Math.min(11, Math.round(Number(r.level)))) : null,
+      activity: String(r.activity || ''),
+      completedAt: String(r.completedAt || ''),
+      memo: String(r.memo || ''),
+      createdAt: String(r.createdAt || ''),
+      updatedAt: String(r.updatedAt || ''),
+    })).filter(r => r.level && r.activity.trim());
+  }
   currentVersion = data?.appMeta?.version || currentVersion;
+  renderSimpleList();
 }
 
 async function autoSave(options = {}) {
@@ -1810,6 +1992,7 @@ async function autoSave(options = {}) {
     levelActionsByItem: LEVEL_ACTIONS,
     progressEvents,
     milestoneRecords,
+    actionItems,
     items: items.map(i => ({
       id: i.id,
       label: i.label,
@@ -2040,6 +2223,7 @@ items.forEach(item => {
 // Load browser-stored snapshot after UI is ready
 switchTopPanel('journey');
 renderFromInputs(false);
+renderSimpleList();
 loadFromBrowserStorage();
 
 // ── Live update ───────────────────────────────────────────────────────────────
