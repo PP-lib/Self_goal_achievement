@@ -276,11 +276,12 @@
   <button class="btn btn-export" onclick="exportJSON()">⬇ JSONを保存</button>
   <button class="btn btn-import" onclick="document.getElementById('importInput').click()">⬆ JSONを読み込む</button>
   <button class="btn btn-import" onclick="restoreFromHistory()">↺ 履歴から復元</button>
+  <button class="btn btn-import" onclick="configureGitHubSync()">☁ GitHub同期設定</button>
   <button class="btn btn-import" onclick="linkProjectJsonFile()">🔗 プロジェクトJSON連携</button>
   <input type="file" id="importInput" accept=".json" onchange="importJSON(this)" />
   <span class="save-badge" id="saveBadge">● 保存なし（初回起動）</span>
   <span class="save-badge" id="storeBadge">● 保存先: 初期化中</span>
-  <span class="save-badge" id="fileSyncBadge">● プロジェクトJSON未連携</span>
+  <span class="save-badge" id="fileSyncBadge">● GitHub同期: 未設定</span>
 </div>
 
 <section class="level-guide">
@@ -318,8 +319,14 @@
 const STORAGE_KEY = 'selfGoalData_v2';
 const API_STATE_ENDPOINT = '/api/state';
 const IS_GITHUB_PAGES = window.location.hostname.endsWith('github.io');
+const GITHUB_SYNC_CONFIG_KEY = 'githubSyncConfig_v1';
 let projectFileHandle = null;
 let serverSyncEnabled = false;
+let githubSyncConfig = null;
+let githubSyncTimer = null;
+let githubSyncInFlight = false;
+let githubPendingData = null;
+let githubFileSha = '';
 
 const LEVEL_DESCRIPTIONS = {
   reading: [
@@ -603,11 +610,168 @@ function setStoreBadge(text) {
 }
 
 function setServerBadge(text) {
-  if (IS_GITHUB_PAGES && text.includes('失敗')) {
+  if (IS_GITHUB_PAGES && !githubSyncConfig && text.includes('失敗')) {
     document.getElementById('fileSyncBadge').textContent = '● GitHub Pages: 同期APIなし（ブラウザ保存のみ）';
     return;
   }
   document.getElementById('fileSyncBadge').textContent = text;
+}
+
+function utf8ToBase64(str) {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
+function base64ToUtf8(str) {
+  return decodeURIComponent(escape(atob(str)));
+}
+
+function loadGitHubSyncConfig() {
+  try {
+    const raw = localStorage.getItem(GITHUB_SYNC_CONFIG_KEY);
+    if (!raw) return null;
+    const cfg = JSON.parse(raw);
+    if (!cfg?.owner || !cfg?.repo || !cfg?.path || !cfg?.branch || !cfg?.token) return null;
+    return cfg;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveGitHubSyncConfig(cfg) {
+  localStorage.setItem(GITHUB_SYNC_CONFIG_KEY, JSON.stringify(cfg));
+}
+
+function clearGitHubSyncConfig() {
+  localStorage.removeItem(GITHUB_SYNC_CONFIG_KEY);
+  githubSyncConfig = null;
+  githubFileSha = '';
+  setServerBadge('● GitHub同期: 未設定');
+}
+
+function githubApiUrl(cfg) {
+  const pathEncoded = cfg.path.split('/').map(encodeURIComponent).join('/');
+  return `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${pathEncoded}?ref=${encodeURIComponent(cfg.branch)}`;
+}
+
+async function fetchGitHubRepoState() {
+  if (!githubSyncConfig) return null;
+  try {
+    const res = await fetch(githubApiUrl(githubSyncConfig), {
+      headers: {
+        'Accept': 'application/vnd.github+json',
+        'Authorization': `Bearer ${githubSyncConfig.token}`,
+      },
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      setServerBadge(`● GitHub同期: 読込失敗 (${res.status})`);
+      return null;
+    }
+    const payload = await res.json();
+    githubFileSha = payload.sha || '';
+    const content = base64ToUtf8((payload.content || '').replace(/\n/g, ''));
+    const parsed = JSON.parse(content);
+    setServerBadge('● GitHub同期: 有効');
+    return parsed;
+  } catch (e) {
+    setServerBadge('● GitHub同期: 読込失敗');
+    return null;
+  }
+}
+
+async function pushGitHubRepoState(data, retry = 1) {
+  if (!githubSyncConfig) return false;
+  const body = {
+    message: `Update scores.json ${new Date().toISOString()}`,
+    content: utf8ToBase64(JSON.stringify(data, null, 2) + '\n'),
+    branch: githubSyncConfig.branch,
+  };
+  if (githubFileSha) body.sha = githubFileSha;
+
+  const res = await fetch(`https://api.github.com/repos/${githubSyncConfig.owner}/${githubSyncConfig.repo}/contents/${githubSyncConfig.path}`, {
+    method: 'PUT',
+    headers: {
+      'Accept': 'application/vnd.github+json',
+      'Authorization': `Bearer ${githubSyncConfig.token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (res.status === 409) {
+    if (retry <= 0) {
+      setServerBadge('● GitHub同期: 競合エラー');
+      return false;
+    }
+    await fetchGitHubRepoState();
+    return pushGitHubRepoState(data, retry - 1);
+  }
+  if (!res.ok) {
+    setServerBadge(`● GitHub同期: 保存失敗 (${res.status})`);
+    return false;
+  }
+  const payload = await res.json();
+  githubFileSha = payload?.content?.sha || githubFileSha;
+  setServerBadge('● GitHub同期: 保存成功');
+  return true;
+}
+
+function scheduleGitHubSync(data) {
+  if (!githubSyncConfig) return;
+  githubPendingData = data;
+  if (githubSyncTimer) clearTimeout(githubSyncTimer);
+  githubSyncTimer = setTimeout(async () => {
+    if (githubSyncInFlight || !githubPendingData) return;
+    githubSyncInFlight = true;
+    const payload = githubPendingData;
+    githubPendingData = null;
+    try {
+      await pushGitHubRepoState(payload);
+    } finally {
+      githubSyncInFlight = false;
+      if (githubPendingData) {
+        scheduleGitHubSync(githubPendingData);
+      }
+    }
+  }, 2000);
+}
+
+async function configureGitHubSync() {
+  const useSync = confirm('GitHubリポジトリのscores.jsonへ自動保存しますか?\nOK: 設定する / キャンセル: 解除');
+  if (!useSync) {
+    clearGitHubSyncConfig();
+    return;
+  }
+  const current = githubSyncConfig || {
+    owner: 'PP-lib',
+    repo: 'Self_goal_achievement',
+    path: 'scores.json',
+    branch: 'main',
+    token: '',
+  };
+  const owner = prompt('GitHub owner', current.owner);
+  if (!owner) return;
+  const repo = prompt('GitHub repo', current.repo);
+  if (!repo) return;
+  const path = prompt('JSON path', current.path);
+  if (!path) return;
+  const branch = prompt('branch', current.branch);
+  if (!branch) return;
+  const token = prompt('Fine-grained PAT (contents: write)', current.token || '');
+  if (!token) {
+    alert('トークンが必要です。');
+    return;
+  }
+
+  githubSyncConfig = { owner, repo, path, branch, token };
+  saveGitHubSyncConfig(githubSyncConfig);
+  githubFileSha = '';
+  const remote = await fetchGitHubRepoState();
+  if (remote?.items) {
+    applyData(remote);
+    setInputsFromData(remote);
+    update();
+  }
 }
 
 async function fetchServerState() {
@@ -774,10 +938,16 @@ async function autoSave(options = {}) {
     await syncToProjectJson(data);
   }
   await saveToServerJson(data);
+  scheduleGitHubSync(data);
   return data;
 }
 
 async function loadFromBrowserStorage() {
+  githubSyncConfig = loadGitHubSyncConfig();
+  if (githubSyncConfig) {
+    setServerBadge('● GitHub同期: 接続確認中');
+  }
+
   const serverData = await fetchServerState();
   if (serverData?.items) {
     applyData(serverData);
@@ -786,6 +956,11 @@ async function loadFromBrowserStorage() {
     setServerBadge('● GitHub JSON同期: 有効');
     update();
     return;
+  }
+
+  let githubData = null;
+  if (githubSyncConfig) {
+    githubData = await fetchGitHubRepoState();
   }
 
   const toTime = data => {
@@ -816,13 +991,15 @@ async function loadFromBrowserStorage() {
     localData = null;
   }
 
-  const candidates = [staticData, idbData, localData].filter(d => d?.items);
+  const candidates = [githubData, staticData, idbData, localData].filter(d => d?.items);
   if (candidates.length > 0) {
     candidates.sort((a, b) => toTime(b) - toTime(a));
     const selected = candidates[0];
     applyData(selected);
     setInputsFromData(selected);
-    if (selected === idbData) {
+    if (selected === githubData) {
+      setStoreBadge('● 保存先: GitHub JSON（全端末同期）');
+    } else if (selected === idbData) {
       setStoreBadge('● 保存先: IndexedDB（前回編集を復元）');
     } else if (selected === localData) {
       setStoreBadge('● 保存先: localStorage（前回編集を復元）');
