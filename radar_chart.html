@@ -642,7 +642,7 @@ function setStoreBadge(text) {
 }
 
 function setServerBadge(text) {
-  if (IS_GITHUB_PAGES && !githubSyncConfig && text.includes('失敗')) {
+  if (IS_GITHUB_PAGES && !githubSyncConfig && !supabaseSyncConfig && text.includes('失敗')) {
     document.getElementById('fileSyncBadge').textContent = '● GitHub Pages: 同期APIなし（ブラウザ保存のみ）';
     return;
   }
@@ -672,6 +672,7 @@ function loadSupabaseSyncConfig() {
       anonKey: cfg.anonKey,
       table: cfg.table,
       stateKey: cfg.stateKey,
+      writeToken: cfg.writeToken || '',
     };
   } catch (e) {
     return null;
@@ -692,6 +693,20 @@ function supabaseTableUrl(cfg) {
   return `${cfg.url}/rest/v1/${encodeURIComponent(cfg.table)}`;
 }
 
+function buildSupabaseHeaders(cfg, includeJson) {
+  const headers = {
+    apikey: cfg.anonKey,
+    Authorization: `Bearer ${cfg.anonKey}`,
+  };
+  if (cfg.writeToken) {
+    headers['x-app-write-token'] = cfg.writeToken;
+  }
+  if (includeJson) {
+    headers['Content-Type'] = 'application/json';
+  }
+  return headers;
+}
+
 async function fetchSupabaseState() {
   if (!supabaseSyncConfig) return null;
   const cfg = supabaseSyncConfig;
@@ -699,10 +714,7 @@ async function fetchSupabaseState() {
   const url = `${supabaseTableUrl(cfg)}?state_key=eq.${key}&select=payload,updated_at&limit=1`;
   try {
     const res = await fetch(url, {
-      headers: {
-        apikey: cfg.anonKey,
-        Authorization: `Bearer ${cfg.anonKey}`,
-      },
+      headers: buildSupabaseHeaders(cfg, false),
       cache: 'no-store',
     });
     if (!res.ok) {
@@ -731,9 +743,7 @@ async function pushSupabaseState(data) {
     const res = await fetch(url, {
       method: 'POST',
       headers: {
-        apikey: cfg.anonKey,
-        Authorization: `Bearer ${cfg.anonKey}`,
-        'Content-Type': 'application/json',
+        ...buildSupabaseHeaders(cfg, true),
         Prefer: 'resolution=merge-duplicates,return=minimal',
       },
       body: JSON.stringify([
@@ -788,6 +798,7 @@ async function configureSupabaseSync() {
     anonKey: '',
     table: 'app_state',
     stateKey: 'self_goal_main',
+    writeToken: '',
   };
 
   const url = normalizeSupabaseUrl(prompt('Supabase Project URL (https://xxxx.supabase.co)', current.url));
@@ -801,8 +812,9 @@ async function configureSupabaseSync() {
   if (!table) return;
   const stateKey = prompt('state key', current.stateKey);
   if (!stateKey) return;
+  const writeToken = prompt('write token (optional: secure modeで使う)', current.writeToken || '') || '';
 
-  supabaseSyncConfig = { url, anonKey, table, stateKey };
+  supabaseSyncConfig = { url, anonKey, table, stateKey, writeToken };
   saveSupabaseSyncConfig(supabaseSyncConfig);
 
   const remote = await fetchSupabaseState();

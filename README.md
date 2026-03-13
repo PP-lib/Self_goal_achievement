@@ -4,7 +4,9 @@ management my goals
 ## Supabase Sync (Recommended)
 
 1. Create a Supabase project.
-2. Open SQL Editor and run this schema:
+2. Open SQL Editor and run one of the schema options below.
+
+Option A: quick start (open write policy)
 
 ```sql
 create table if not exists public.app_state (
@@ -35,12 +37,54 @@ using (true)
 with check (true);
 ```
 
+Option B: secure mode (write token required)
+
+```sql
+create table if not exists public.app_state (
+	state_key text primary key,
+	payload jsonb not null,
+	updated_at timestamptz not null default now()
+);
+
+alter table public.app_state enable row level security;
+
+drop policy if exists "Allow anon select app_state" on public.app_state;
+drop policy if exists "Allow anon upsert app_state" on public.app_state;
+drop policy if exists "Allow anon update app_state" on public.app_state;
+
+create policy if not exists "Allow anon select app_state"
+on public.app_state
+for select
+to anon
+using (true);
+
+create policy if not exists "Allow anon upsert app_state by token"
+on public.app_state
+for insert
+to anon
+with check (
+	current_setting('request.headers', true)::jsonb ->> 'x-app-write-token' = 'CHANGE_ME_STRONG_TOKEN'
+);
+
+create policy if not exists "Allow anon update app_state by token"
+on public.app_state
+for update
+to anon
+using (
+	current_setting('request.headers', true)::jsonb ->> 'x-app-write-token' = 'CHANGE_ME_STRONG_TOKEN'
+)
+with check (
+	current_setting('request.headers', true)::jsonb ->> 'x-app-write-token' = 'CHANGE_ME_STRONG_TOKEN'
+);
+```
+
 3. In the app toolbar, click "Supabase sync settings".
 4. Set these values:
 	 - Project URL: `https://<project-ref>.supabase.co`
 	 - Anon key: Project Settings > API > anon public
 	 - Table: `app_state`
 	 - State key: `self_goal_main` (or any ID you want)
+	 - Write token: optional (required when using Option B secure mode)
 
 When configured, the app auto-saves to browser storage and also syncs to Supabase for cross-device access.
 
