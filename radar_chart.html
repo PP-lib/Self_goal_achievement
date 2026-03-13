@@ -318,6 +318,7 @@
 const STORAGE_KEY = 'selfGoalData_v2';
 const API_STATE_ENDPOINT = '/api/state';
 let projectFileHandle = null;
+let serverSyncEnabled = false;
 
 const LEVEL_DESCRIPTIONS = {
   reading: [
@@ -608,13 +609,18 @@ async function fetchServerState() {
   try {
     const res = await fetch(API_STATE_ENDPOINT, { cache: 'no-store' });
     if (!res.ok) return null;
+    serverSyncEnabled = true;
     return await res.json();
   } catch (e) {
+    serverSyncEnabled = false;
     return null;
   }
 }
 
 async function saveToServerJson(data) {
+  if (!serverSyncEnabled) {
+    return false;
+  }
   try {
     const res = await fetch(API_STATE_ENDPOINT, {
       method: 'POST',
@@ -761,6 +767,10 @@ async function loadFromBrowserStorage() {
     setServerBadge('● GitHub JSON同期: 有効');
     update();
     return;
+  }
+
+  if (window.location.hostname.endsWith('github.io')) {
+    setServerBadge('● GitHub Pages: 同期APIなし（ブラウザ保存のみ）');
   }
 
   try {
