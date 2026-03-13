@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>自己成長ジャーニーボード</title>
+  <title>Growth Journey Studio</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -418,21 +418,21 @@
 
 <section class="journey-top">
   <div class="focus-panel">
-    <h2>今週のフォーカス（差分が大きい順）</h2>
+    <h2>Weekly Focus (Largest Gaps First)</h2>
     <div class="focus-list" id="focusList"></div>
   </div>
   <div class="journey-board">
-    <h2>進捗ジャーニー</h2>
+    <h2>Progress Journey</h2>
     <div class="journey-grid" id="journeyBoard"></div>
   </div>
   <div class="timeline-panel">
-    <h2>達成タイムライン</h2>
+    <h2>Achievement Timeline</h2>
     <div class="timeline-list" id="timelineList"></div>
   </div>
 </section>
 
-<h1>自己成長ジャーニーボード</h1>
-<p class="subtitle">目標は無限。過程の達成を時系列で積み上げる。</p>
+<h1>Growth Journey Studio</h1>
+<p class="subtitle">Infinite goals, visible progress. Track milestones and momentum over time.</p>
 
 <div class="toolbar">
   <button class="btn btn-export" id="applyEditsBtn" onclick="applyEditsNow()">✅ 編集を反映</button>
@@ -449,7 +449,7 @@
 </div>
 
 <section class="level-guide">
-  <h2>項目別 レベル到達目標（Lv1〜Lv10）</h2>
+  <h2>Level Guide by Track (Lv1-Lv11)</h2>
   <div class="level-grid" id="levelGuideList"></div>
 </section>
 
@@ -500,7 +500,8 @@ const LEVEL_DESCRIPTIONS = {
     '社内外に向けた書評・要約・講義コンテンツを継続発信し、影響範囲を広げられる。',
     '高度な専門領域でリーディングリストを監修し、他者育成の標準を作れる。',
     '複数年の知見データベースを構築し、意思決定支援システムとして活用できる。',
-    '読書を核とした独自メソッドを確立し、組織変革・人材育成を牽引できる。'
+    '読書を核とした独自メソッドを確立し、組織変革・人材育成を牽引できる。',
+    'Lv11: 読書知見を外部へ体系展開し、他組織にも再現可能な学習エコシステムを実装できる。'
   ],
   english: [
     '30分英会話で、挨拶と基本質問に単語中心で応答できる。',
@@ -623,7 +624,8 @@ const LEVEL_ACTIONS = {
     '社内外向けに月2本の書評・講義コンテンツを発信する。',
     '専門領域ごとに推奨リストを整備し、育成面談で運用する。',
     '知見DBを検索可能な形で整備し、意思決定会議で活用する。',
-    '独自メソッドを教材化し、組織展開プログラムを運営する。'
+    '独自メソッドを教材化し、組織展開プログラムを運営する。',
+    'Lv11アクション: 対外向けに読書メソッドを公開し、他組織導入の伴走支援を行って再現性を検証する。'
   ],
   english: [
     '30分英会話の最初5分を固定フレーズ（挨拶・近況）で毎日反復する。',
@@ -736,13 +738,17 @@ const LEVEL_ACTIONS = {
 };
 
 function getDesc(id, score) {
-  const level = Math.max(1, Math.min(10, score));
-  return LEVEL_DESCRIPTIONS[id]?.[level - 1] ?? '';
+  const levels = LEVEL_DESCRIPTIONS[id] || [];
+  const cap = Math.max(1, levels.length || 10);
+  const level = Math.max(1, Math.min(cap, score));
+  return levels[level - 1] ?? '';
 }
 
 function getAction(id, score) {
-  const level = Math.max(1, Math.min(10, score));
-  return LEVEL_ACTIONS[id]?.[level - 1] ?? '';
+  const levels = LEVEL_ACTIONS[id] || [];
+  const cap = Math.max(1, levels.length || 10);
+  const level = Math.max(1, Math.min(cap, score));
+  return levels[level - 1] ?? '';
 }
 
 // ── Item definitions ──────────────────────────────────────────────────────────
@@ -840,7 +846,7 @@ function renderJourneyBoard() {
       <div class="journey-card">
         <div class="journey-head"><strong>${i.label}</strong><span>Lv.${i.now} / ${i.goal}</span></div>
         <div class="journey-track"><div class="journey-fill" style="width:${pct}%"></div></div>
-        <div class="journey-next">次: ${getDesc(i.id, Math.min(10, i.now + 1)) || '継続'}</div>
+        <div class="journey-next">次: ${getDesc(i.id, Math.min((LEVEL_DESCRIPTIONS[i.id] || []).length || 10, i.now + 1)) || '継続'}</div>
         <div class="milestone-form">
           <input class="milestone-input" id="target-title-${i.id}" value="${escHtml(rec.targetTitle)}" placeholder="到達目標（例: 英会話で業務説明を英語のみで完了）" />
           <input class="milestone-input" id="target-date-${i.id}" type="date" value="${escHtml(rec.targetDate)}" />
@@ -1653,7 +1659,7 @@ function setInputsFromData(data) {
 function applyData(data) {
   if (data?.levelGuideByItem) {
     Object.entries(data.levelGuideByItem).forEach(([id, levels]) => {
-      if (Array.isArray(levels) && levels.length === 10) {
+      if (Array.isArray(levels) && levels.length >= 10) {
         LEVEL_DESCRIPTIONS[id] = levels;
       }
     });
@@ -1661,7 +1667,7 @@ function applyData(data) {
   }
   if (data?.levelActionsByItem) {
     Object.entries(data.levelActionsByItem).forEach(([id, levels]) => {
-      if (Array.isArray(levels) && levels.length === 10) {
+      if (Array.isArray(levels) && levels.length >= 10) {
         LEVEL_ACTIONS[id] = levels;
       }
     });
