@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>自己成長レーダーチャート</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif;
+      background: #0f0f1a;
+      color: #e0e0f0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.6rem;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+      color: #c9b8ff;
+    }
+    .subtitle {
+      text-align: center;
+      font-size: 0.8rem;
+      color: #7a7a9a;
+      margin-bottom: 14px;
+    }
+
+    /* ---- Toolbar ---- */
+    .toolbar {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 22px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 7px 18px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn:hover  { opacity: 0.85; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn-export { background: linear-gradient(135deg, #7ecfff, #b07eff); color: #0f0f1a; }
+    .btn-import { background: #22223a; color: #c9b8ff; border: 1px solid #3a3a5a; }
+    .save-badge {
+      font-size: 0.73rem;
+      color: #5abf72;
+      background: #182418;
+      border: 1px solid #2a4a2a;
+      border-radius: 6px;
+      padding: 5px 13px;
+    }
+    #importInput { display: none; }
+
+    /* ---- Level Guide ---- */
+    .level-guide {
+      max-width: 1120px;
+      margin: 0 auto 18px;
+      background: #16162a;
+      border-radius: 14px;
+      box-shadow: 0 4px 16px #0004;
+      padding: 14px 16px;
+    }
+    .level-guide h2 {
+      font-size: 0.84rem;
+      letter-spacing: 0.06em;
+      color: #d8cdfd;
+      margin-bottom: 10px;
+    }
+    .level-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(240px, 1fr));
+      gap: 8px 12px;
+    }
+    .guide-item {
+      background: #1b1b32;
+      border-radius: 10px;
+      padding: 8px;
+    }
+    .guide-item summary {
+      cursor: pointer;
+      color: #e5e8f9;
+      font-size: 0.82rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      list-style: none;
+    }
+    .guide-item summary::-webkit-details-marker {
+      display: none;
+    }
+    .item-level-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+    .level-row {
+      display: grid;
+      grid-template-columns: 62px 1fr;
+      gap: 8px;
+      align-items: start;
+      font-size: 0.75rem;
+      line-height: 1.45;
+      padding: 6px 8px;
+      border-radius: 8px;
+      background: #1b1b32;
+    }
+    .level-label {
+      color: #ffd96b;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    .level-text {
+      color: #bfc4da;
+    }
+
+
+    /* ---- Layout ---- */
+    .main-layout {
+      display: flex;
+      gap: 24px;
+      max-width: 1120px;
+      margin: 0 auto;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .chart-wrapper {
+      flex: 1 1 400px;
+      background: #16162a;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 4px 32px #0006;
+      min-width: 320px;
+    }
+    .chart-wrapper canvas { max-width: 100%; }
+
+    .controls-wrapper {
+      flex: 1 1 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* ---- Category blocks ---- */
+    .category-block {
+      background: #16162a;
+      border-radius: 14px;
+      padding: 16px 18px;
+      box-shadow: 0 4px 16px #0004;
+    }
+    .category-title {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.13em;
+      margin-bottom: 12px;
+      font-weight: 700;
+    }
+    .cat-study { color: #7ecfff; }
+    .cat-hobby { color: #a8ff7e; }
+    .cat-work  { color: #ffb07e; }
+
+    /* ---- Item blocks ---- */
+    .item-block {
+      margin-bottom: 14px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid #1f1f38;
+    }
+    .item-block:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+
+    .item-name {
+      font-size: 0.88rem;
+      font-weight: 600;
+      margin-bottom: 7px;
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 3px;
+    }
+    .slider-tag {
+      font-size: 0.68rem;
+      width: 24px;
+      text-align: right;
+      color: #7a7a9a;
+      flex-shrink: 0;
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      flex: 1;
+      height: 4px;
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"].current { background: linear-gradient(90deg, #7ecfff, #b07eff); }
+    input[type="range"].target  { background: linear-gradient(90deg, #ff7eb3, #ffd700); }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 0 5px #000a;
+    }
+    .slider-val {
+      font-size: 0.82rem;
+      font-weight: 700;
+      width: 16px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    /* ---- Level descriptions ---- */
+    .item-desc {
+      margin-top: 6px;
+      font-size: 0.7rem;
+      line-height: 1.6;
+      padding-left: 2px;
+    }
+    .desc-now  { color: rgba(126,207,255,0.85); }
+    .desc-goal { color: rgba(255,215,0,0.8); }
+
+    /* ---- Legend ---- */
+    .legend {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      margin-top: 14px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: #aaa;
+    }
+    .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-current { background: #7ecfff; }
+    .dot-target  { background: #ffd700; }
+    @media (max-width: 820px) {
+      .level-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<h1>自己成長レーダーチャート</h1>
+<p class="subtitle">スコア 1〜10　|　スライダーで調整、ブラウザに自動保存されます</p>
+
+<div class="toolbar">
+  <button class="btn btn-export" onclick="exportJSON()">⬇ JSONを保存</button>
+  <button class="btn btn-import" onclick="document.getElementById('importInput').click()">⬆ JSONを読み込む</button>
+  <button class="btn btn-import" onclick="linkProjectJsonFile()">🔗 プロジェクトJSON連携</button>
+  <input type="file" id="importInput" accept=".json" onchange="importJSON(this)" />
+  <span class="save-badge" id="saveBadge">● 保存なし（初回起動）</span>
+  <span class="save-badge" id="fileSyncBadge">● プロジェクトJSON未連携</span>
+</div>
+
+<section class="level-guide">
+  <h2>項目別 レベル到達目標（Lv1〜Lv10）</h2>
+  <div class="level-grid" id="levelGuideList"></div>
+</section>
+
+<div class="main-layout">
+
+  <div class="chart-wrapper">
+    <canvas id="radarChart"></canvas>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot dot-current"></div>現状 Now</div>
+      <div class="legend-item"><div class="legend-dot dot-target"></div>目標 Goal</div>
+    </div>
+  </div>
+
+  <div class="controls-wrapper">
+    <div class="category-block">
+      <div class="category-title cat-study">📚 学習</div>
+      <div id="controls-study"></div>
+    </div>
+    <div class="category-block">
+      <div class="category-title cat-hobby">🎯 趣味</div>
+      <div id="controls-hobby"></div>
+    </div>
+    <div class="category-block">
+      <div class="category-title cat-work">💼 仕事</div>
+      <div id="controls-work"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'selfGoalData_v1';
+let projectFileHandle = null;
+
+const LEVEL_DESCRIPTIONS = {
+  reading: [
+    '読書習慣がなく、月0冊。',
+    '月1冊を読み切れる。',
+    '月2冊読み、要点を1行メモできる。',
+    '月3冊読み、学びをノート1ページに整理できる。',
+    '月4冊を安定継続し、行動に1つ反映できる。',
+    '月5冊以上を継続し、書籍比較の視点を持てる。',
+    '週1冊ペースで読み、要約を他者共有できる。',
+    '月6冊以上で実務改善に複数回つなげられる。',
+    '年80冊規模で知見を体系化し、周囲に展開できる。',
+    '年100冊以上を継続し、独自の学習体系を指導できる。'
+  ],
+  english: [
+    '挨拶と単語レベルのみ。',
+    '自己紹介と簡単な受け答えができる。',
+    '日常の短い会話をゆっくりなら継続できる。',
+    '買い物・移動・予定調整を英語で完結できる。',
+    '仕事の基本連絡（報告・依頼）を英語で行える。',
+    '30分程度の業務会話を概ね理解し応答できる。',
+    '会議で意見を述べ、質問への対応ができる。',
+    '議論・交渉で論点整理しながら会話を主導できる。',
+    '英語プレゼンを設計し、質疑応答まで運営できる。',
+    '重要商談・対外説明を高い説得力で実施できる。'
+  ],
+  indonesian: [
+    '基本挨拶のみ。',
+    '自己紹介と短文会話ができる。',
+    '日常会話で必要情報を伝えられる。',
+    '生活場面の会話を自力で回せる。',
+    '仕事の簡単な報連相をインドネシア語で行える。',
+    '会議内容を大筋理解し、質問できる。',
+    '業務会話で意図確認しながら進行できる。',
+    '会議で提案・交渉を実施できる。',
+    '部門横断の議論を通訳なしで主導できる。',
+    '重要案件の交渉・調整を高精度で完遂できる。'
+  ],
+  running: [
+    '運動習慣がなく、ほぼ走っていない。',
+    '月2回、2km程度を走れる。',
+    '週1回、3〜5kmを継続できる。',
+    '週2回、5kmを無理なく継続できる。',
+    '週2〜3回、8〜10kmを継続できる。',
+    '10kmレースを完走できる。',
+    '月間走行距離100kmを安定継続できる。',
+    'ハーフマラソンを目標タイム内で完走できる。',
+    'フルマラソン完走を安定達成できる。',
+    'フルマラソンで高目標（例: サブ4）を達成できる。'
+  ],
+  guitar: [
+    'チューニングと基本フォームを理解している段階。',
+    '主要オープンコードを押さえられる。',
+    '簡単なコード進行を一定テンポで弾ける。',
+    '1曲を通して弾き語りできる。',
+    'ストロークの強弱を使い分けて表現できる。',
+    '複数ジャンルの曲を安定して演奏できる。',
+    'アルペジオや簡単な単音フレーズを取り入れられる。',
+    'ソロパートを含む中級曲を完成度高く演奏できる。',
+    'アドリブやアレンジで個性を出せる。',
+    'ライブや発表の場で安定した演奏を提供できる。'
+  ],
+  mgmt: [
+    '管理役割の経験がほぼない。',
+    'タスク配分と進捗確認を実施できる。',
+    '週次で優先順位を整理し、遅延を抑制できる。',
+    'KPIを設定し、結果を定点観測できる。',
+    '課題を可視化し、改善アクションを回せる。',
+    'チーム目標と個人目標を連動して運用できる。',
+    '部門間調整を行い、成果創出を加速できる。',
+    '戦略と現場運用を接続して成果を再現できる。',
+    '次期リーダー育成を仕組みとして運用できる。',
+    '組織文化と事業成果の両面を長期で牽引できる。'
+  ],
+  mgrsupp: [
+    '補佐業務の経験がほぼない。',
+    '依頼された資料作成と調整を実施できる。',
+    '会議準備・議事整理を自律的に行える。',
+    '重要情報を先回りで整理し、意思決定を支援できる。',
+    '課題整理と代替案提示をセットで提案できる。',
+    'マネージャー不在時に一部判断を代行できる。',
+    '意思決定プロセスを標準化し、チーム運用を安定化できる。',
+    '複数マネージャーを横断で支援し、生産性を上げられる。',
+    '経営視点で優先順位を整理し、組織判断を補佐できる。',
+    '次世代の補佐人材を育成し、再現可能な体制を作れる。'
+  ],
+  coaching: [
+    'コーチング経験がほぼない。',
+    '傾聴を意識した1on1ができる。',
+    '質問を使って本人の気づきを引き出せる。',
+    '目標設定と行動計画を共同で作成できる。',
+    '継続フォローで行動定着を支援できる。',
+    '強みと課題を明確化し、改善行動を促進できる。',
+    '複数メンバーの成長を同時に支援できる。',
+    'チーム全体の学習文化を設計・運用できる。',
+    '高難度ケースでも成果に結びつける介入ができる。',
+    'コーチ育成まで担い、組織に仕組みを定着できる。'
+  ],
+  framework: [
+    '自己流が言語化されていない。',
+    '断片的なノウハウをメモ化できている。',
+    '主要手順をフローとして整理できる。',
+    '再現可能な手順書を作成できる。',
+    '複数ケースで使い、改善点を抽出できる。',
+    '評価指標を定め、効果検証ができる。',
+    '他者が使える形式でテンプレート化できる。',
+    '部門内で標準運用として展開できる。',
+    '部門横断で適用し、成果を比較改善できる。',
+    '独自フレームワークとして外部発信できる完成度。'
+  ]
+};
+
+function getDesc(id, score) {
+  const level = Math.max(1, Math.min(10, score));
+  return LEVEL_DESCRIPTIONS[id]?.[level - 1] ?? '';
+}
+
+// ── Item definitions ──────────────────────────────────────────────────────────
+const items = [
+  { id: 'reading',    label: '読書',                 cat: 'study', now: 5, goal: 8 },
+  { id: 'english',    label: '英会話',               cat: 'study', now: 4, goal: 8 },
+  { id: 'indonesian', label: 'インドネシア語',       cat: 'study', now: 3, goal: 7 },
+  { id: 'running',    label: 'ランニング',           cat: 'hobby', now: 5, goal: 8 },
+  { id: 'guitar',     label: 'ギター',               cat: 'hobby', now: 4, goal: 7 },
+  { id: 'mgmt',       label: 'マネジメント',         cat: 'work',  now: 5, goal: 9 },
+  { id: 'mgrsupp',    label: 'マネージャーサポート', cat: 'work',  now: 5, goal: 8 },
+  { id: 'coaching',   label: '人材コーチング',       cat: 'work',  now: 4, goal: 9 },
+  { id: 'framework',  label: 'フレームワーク確立',   cat: 'work',  now: 3, goal: 9 },
+];
+
+function renderLevelGuide() {
+  const container = document.getElementById('levelGuideList');
+  container.innerHTML = items.map(item => {
+    const levels = (LEVEL_DESCRIPTIONS[item.id] || []).map((text, idx) => `
+      <div class="level-row">
+        <div class="level-label">Lv.${idx + 1}</div>
+        <div class="level-text">${text}</div>
+      </div>`).join('');
+    return `
+      <details class="guide-item">
+        <summary>${item.label}</summary>
+        <div class="item-level-grid">${levels}</div>
+      </details>`;
+  }).join('');
+  const first = container.querySelector('details');
+  if (first) first.open = true;
+}
+renderLevelGuide();
+
+// ── Storage ───────────────────────────────────────────────────────────────────
+function applyData(data) {
+  if (data?.levelGuideByItem) {
+    Object.entries(data.levelGuideByItem).forEach(([id, levels]) => {
+      if (Array.isArray(levels) && levels.length === 10) {
+        LEVEL_DESCRIPTIONS[id] = levels;
+      }
+    });
+    renderLevelGuide();
+  }
+  if (!data?.items) return;
+  data.items.forEach(s => {
+    const item = items.find(i => i.id === s.id);
+    if (item) { item.now = s.now; item.goal = s.goal; }
+  });
+}
+
+function autoSave() {
+  const data = {
+    lastUpdated: new Date().toISOString(),
+    levelGuideByItem: LEVEL_DESCRIPTIONS,
+    items: items.map(i => ({
+      id: i.id,
+      label: i.label,
+      now:  parseInt(document.getElementById(`now-${i.id}`).value),
+      goal: parseInt(document.getElementById(`goal-${i.id}`).value),
+    })),
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  const t = new Date(data.lastUpdated);
+  const ts = `${t.getFullYear()}/${t.getMonth()+1}/${t.getDate()} `
+           + `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+  document.getElementById('saveBadge').textContent = `● 自動保存: ${ts}`;
+  if (projectFileHandle) {
+    syncToProjectJson(data);
+  }
+  return data;
+}
+
+async function syncToProjectJson(data) {
+  if (!projectFileHandle) return;
+  try {
+    const writable = await projectFileHandle.createWritable();
+    await writable.write(JSON.stringify(data, null, 2));
+    await writable.close();
+    document.getElementById('fileSyncBadge').textContent = '● プロジェクトJSON同期中';
+  } catch (e) {
+    document.getElementById('fileSyncBadge').textContent = '● 同期エラー（再連携してください）';
+  }
+}
+
+async function linkProjectJsonFile() {
+  if (!window.showOpenFilePicker) {
+    alert('このブラウザはプロジェクトJSON直接連携に非対応です。JSON保存ボタンをご利用ください。');
+    return;
+  }
+  try {
+    const [handle] = await window.showOpenFilePicker({
+      types: [{
+        description: 'JSON Files',
+        accept: { 'application/json': ['.json'] }
+      }],
+      excludeAcceptAllOption: true,
+      multiple: false,
+    });
+    projectFileHandle = handle;
+    document.getElementById('fileSyncBadge').textContent = `● 連携中: ${handle.name}`;
+    await syncToProjectJson(autoSave());
+  } catch (e) {
+    // user canceled
+  }
+}
+
+// Load saved data before building UI
+let initialTs = null;
+(function loadInitial() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    applyData(data);
+    if (data.lastUpdated) {
+      const t = new Date(data.lastUpdated);
+      initialTs = `${t.getFullYear()}/${t.getMonth()+1}/${t.getDate()} `
+                + `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+    }
+  } catch(e) { /* use defaults */ }
+})();
+
+// ── Build slider UI ───────────────────────────────────────────────────────────
+const catContainer = { study: 'controls-study', hobby: 'controls-hobby', work: 'controls-work' };
+
+items.forEach(item => {
+  const wrap = document.getElementById(catContainer[item.cat]);
+  const div  = document.createElement('div');
+  div.className = 'item-block';
+  div.innerHTML = `
+    <div class="item-name">${item.label}</div>
+    <div class="slider-row">
+      <span class="slider-tag">現状</span>
+      <input type="range" class="current" id="now-${item.id}"  min="1" max="10" value="${item.now}" />
+      <span class="slider-val" id="now-val-${item.id}">${item.now}</span>
+    </div>
+    <div class="slider-row">
+      <span class="slider-tag">目標</span>
+      <input type="range" class="target"  id="goal-${item.id}" min="1" max="10" value="${item.goal}" />
+      <span class="slider-val" id="goal-val-${item.id}">${item.goal}</span>
+    </div>
+    <div class="item-desc">
+      <div class="desc-now"  id="desc-now-${item.id}">▶ 現状 Lv.${item.now}: ${getDesc(item.id, item.now)}</div>
+      <div class="desc-goal" id="desc-goal-${item.id}">◎ 目標 Lv.${item.goal}: ${getDesc(item.id, item.goal)}</div>
+    </div>`;
+  wrap.appendChild(div);
+  document.getElementById(`now-${item.id}`).addEventListener('input',  update);
+  document.getElementById(`goal-${item.id}`).addEventListener('input', update);
+});
+
+// ── Chart.js setup ────────────────────────────────────────────────────────────
+const ctx = document.getElementById('radarChart').getContext('2d');
+const radarChart = new Chart(ctx, {
+  type: 'radar',
+  data: {
+    labels: items.map(i => i.label),
+    datasets: [
+      {
+        label: '現状 Now',
+        data: items.map(i => i.now),
+        backgroundColor: 'rgba(126,207,255,0.18)',
+        borderColor: 'rgba(126,207,255,0.9)',
+        pointBackgroundColor: 'rgba(126,207,255,1)',
+        borderWidth: 2,
+        pointRadius: 4,
+      },
+      {
+        label: '目標 Goal',
+        data: items.map(i => i.goal),
+        backgroundColor: 'rgba(255,215,0,0.12)',
+        borderColor: 'rgba(255,215,0,0.9)',
+        pointBackgroundColor: 'rgba(255,215,0,1)',
+        borderDash: [5,3],
+        borderWidth: 2,
+        pointRadius: 4,
+      },
+    ],
+  },
+  options: {
+    responsive: true,
+    scales: {
+      r: {
+        min: 0, max: 10,
+        ticks: { stepSize: 2, color: '#555', backdropColor: 'transparent', font: { size: 10 } },
+        grid:        { color: '#2a2a44' },
+        angleLines:  { color: '#2a2a44' },
+        pointLabels: { color: '#ccc', font: { size: 12 } },
+      },
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.r} / 10` } },
+    },
+  },
+});
+
+// Set the loaded timestamp on the badge
+if (initialTs) document.getElementById('saveBadge').textContent = `● 自動保存: ${initialTs}`;
+
+// ── Live update ───────────────────────────────────────────────────────────────
+function update() {
+  const nowData  = items.map(i => {
+    const v = parseInt(document.getElementById(`now-${i.id}`).value);
+    document.getElementById(`now-val-${i.id}`).textContent = v;
+    document.getElementById(`desc-now-${i.id}`).textContent  = `▶ 現状 Lv.${v}: ${getDesc(i.id, v)}`;
+    return v;
+  });
+  const goalData = items.map(i => {
+    const v = parseInt(document.getElementById(`goal-${i.id}`).value);
+    document.getElementById(`goal-val-${i.id}`).textContent = v;
+    document.getElementById(`desc-goal-${i.id}`).textContent = `◎ 目標 Lv.${v}: ${getDesc(i.id, v)}`;
+    return v;
+  });
+  radarChart.data.datasets[0].data = nowData;
+  radarChart.data.datasets[1].data = goalData;
+  radarChart.update();
+  autoSave();
+}
+
+// ── Export JSON ───────────────────────────────────────────────────────────────
+function exportJSON() {
+  const data = autoSave();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'scores.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ── Import JSON ───────────────────────────────────────────────────────────────
+function importJSON(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data?.items) { alert('有効なJSONファイルではありません'); return; }
+      applyData(data);
+      data.items.forEach(s => {
+        const nowEl  = document.getElementById(`now-${s.id}`);
+        const goalEl = document.getElementById(`goal-${s.id}`);
+        if (nowEl)  nowEl.value  = s.now;
+        if (goalEl) goalEl.value = s.goal;
+      });
+      update();
+    } catch(err) {
+      alert('JSONの読み込みに失敗しました');
+    }
+  };
+  reader.readAsText(file);
+  input.value = ''; // allow re-importing the same file
+}
+</script>
+</body>
+</html>
