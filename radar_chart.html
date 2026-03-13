@@ -123,6 +123,11 @@
     .level-text {
       color: #bfc4da;
     }
+    .level-action {
+      color: #97e6b3;
+      margin-top: 2px;
+      font-size: 0.72rem;
+    }
 
 
     /* ---- Layout ---- */
@@ -233,6 +238,10 @@
     }
     .desc-now  { color: rgba(126,207,255,0.85); }
     .desc-goal { color: rgba(255,215,0,0.8); }
+    .desc-action {
+      color: rgba(151,230,179,0.88);
+      margin-left: 12px;
+    }
 
     /* ---- Legend ---- */
     .legend {
@@ -418,9 +427,125 @@ const LEVEL_DESCRIPTIONS = {
   ]
 };
 
+const LEVEL_ACTIONS = {
+  reading: [
+    '年間の重点テーマを3つ選び、月次の読書計画表を作る。',
+    'テーマ別に「必読20冊リスト」を作成し優先順位を付ける。',
+    '毎週1回、異分野2冊を比較する統合メモを作る。',
+    '再利用テンプレート（要約・示唆・実験）を固定フォーマット化する。',
+    '読書知見を使った改善施策を1件設計し、チームで試行する。',
+    '月1回のKPIレビューで、読書起点施策の成果を検証する。',
+    '社内外向けに月2本の書評・講義コンテンツを発信する。',
+    '専門領域ごとに推奨リストを整備し、育成面談で運用する。',
+    '知見DBを検索可能な形で整備し、意思決定会議で活用する。',
+    '独自メソッドを教材化し、組織展開プログラムを運営する。'
+  ],
+  english: [
+    '毎日10分の音読と基本フレーズ復習を行う。',
+    '週3回、自己紹介とQ&A練習を録音して改善する。',
+    'オンライン英会話を週2回実施し、日常話題を固定練習する。',
+    '生活シーン別の定型表現を30個作り、実地で使う。',
+    '業務連絡テンプレートを英語で作成し、実際に送信する。',
+    '30分会話を想定したロールプレイを週2回行う。',
+    '会議で使う意見・質問フレーズ集を作り、毎会議で1回使う。',
+    'ディベート練習を週1回行い、論点整理メモを作成する。',
+    '英語プレゼンを月1回実施し、質疑応答を録画レビューする。',
+    '重要商談を想定した模擬交渉を継続し、改善点を反映する。'
+  ],
+  indonesian: [
+    '毎日あいさつ・基本語彙20語を反復する。',
+    '自己紹介テンプレートを作り、週3回音読する。',
+    '日常会話の定型質問を10セット練習する。',
+    '生活場面の会話シナリオを週2本ロールプレイする。',
+    '業務報連相の定型文を作り、実務で使う。',
+    '会議要点の聞き取り練習を週2回行う。',
+    '確認質問フレーズを準備し、会議で毎回1回使う。',
+    '提案・交渉の表現集を作って模擬会話を行う。',
+    '部門横断会議で司会補助を担当し発話量を増やす。',
+    '重要案件の議事録をインドネシア語で作成し精度を高める。'
+  ],
+  running: [
+    '週2回の運動枠をカレンダーに先に確保する。',
+    '2kmジョグを月2回実施し、記録を残す。',
+    '週1回3〜5kmを固定曜日で継続する。',
+    '週2回5kmを一定ペースで走る。',
+    '週3回のうち1回を8km以上のLSDにする。',
+    '10km大会にエントリーし、逆算練習計画を実行する。',
+    '月間走行距離を管理し、100kmを3カ月継続する。',
+    'ハーフ向けにペース走とロング走を週次で実施する。',
+    'フル向けに30km走を月1回入れて耐久力を上げる。',
+    'レース戦略（補給・ペース）を事前検証し本番で実行する。'
+  ],
+  guitar: [
+    '毎回5分のチューニングとフォーム確認を習慣化する。',
+    '主要コードを1日10分、メトロノームで反復する。',
+    '基本進行をテンポ80で正確に弾く練習を行う。',
+    '1曲通し練習を週3回実施し録音レビューする。',
+    '強弱パターンを3種類作り、曲で使い分ける。',
+    'ジャンル別に課題曲を月1曲ずつ仕上げる。',
+    'アルペジオと単音フレーズを毎日15分練習する。',
+    '中級曲を分解練習し、週次で難所を潰す。',
+    'アドリブ用のスケール練習を継続し、実演で試す。',
+    '月1回の発表機会を作り、本番演奏を重ねる。'
+  ],
+  mgmt: [
+    '担当タスクの可視化ボードを作成する。',
+    '週次で進捗レビューを実施し遅延要因を除去する。',
+    '優先順位基準を定義し、毎週更新する。',
+    'KPIを3つ設定し、週次で数値確認する。',
+    '課題一覧に対して担当・期限・対策を明記する。',
+    'チーム目標と個人目標の接続面談を月1回行う。',
+    '部門間の依存課題を洗い出し、調整会を運営する。',
+    '戦略目標から四半期施策へ分解し進捗管理する。',
+    '次期リーダー候補へ権限移譲計画を実行する。',
+    '文化施策と成果指標を連動させた運営を定着させる。'
+  ],
+  mgrsupp: [
+    '補佐業務の標準手順を一覧化する。',
+    '依頼資料のテンプレートを整備し再利用する。',
+    '会議準備チェックリストを作成し毎回運用する。',
+    '意思決定に必要な情報を事前に1枚で整理する。',
+    '課題に対し代替案を最低2案添えて提案する。',
+    '不在時代行の判断基準をマネージャーと合意する。',
+    '決裁・承認フローを標準化し処理時間を短縮する。',
+    '複数管理者の依頼を優先度で統合管理する。',
+    '経営視点のサマリー資料を月次で作成する。',
+    '補佐人材向けの育成カリキュラムを運用する。'
+  ],
+  coaching: [
+    '1on1の実施頻度と記録フォーマットを固定する。',
+    '傾聴と要約の練習を毎回の面談で実行する。',
+    'オープンクエスチョンを事前に5つ準備する。',
+    '目標と行動計画をSMARTで合意する。',
+    '週次フォローで実行率を確認し障害を除去する。',
+    '強み・課題フィードバックを具体事実で伝える。',
+    '複数メンバーの進捗ダッシュボードを運用する。',
+    'チーム学習会を月1回開催し改善知見を共有する。',
+    '高難度ケースは仮説検証サイクルで介入を設計する。',
+    '社内コーチ育成プログラムを設計し実施する。'
+  ],
+  framework: [
+    '現行プロセスを棚卸しし、用語を統一する。',
+    'ノウハウを分類し、再利用単位で整理する。',
+    '主要手順をフローチャート化する。',
+    '手順書を作成し、第三者検証で改善する。',
+    '複数案件で試行し、失敗パターンを収集する。',
+    '評価指標を定義し、効果測定を定例化する。',
+    'テンプレートと記入例を整備し展開する。',
+    '部門標準として運用ルールと教育を実施する。',
+    '他部門展開の導入支援と比較分析を行う。',
+    '外部発信用に理論・事例・運用手順を体系化する。'
+  ]
+};
+
 function getDesc(id, score) {
   const level = Math.max(1, Math.min(10, score));
   return LEVEL_DESCRIPTIONS[id]?.[level - 1] ?? '';
+}
+
+function getAction(id, score) {
+  const level = Math.max(1, Math.min(10, score));
+  return LEVEL_ACTIONS[id]?.[level - 1] ?? '';
 }
 
 // ── Item definitions ──────────────────────────────────────────────────────────
@@ -442,7 +567,10 @@ function renderLevelGuide() {
     const levels = (LEVEL_DESCRIPTIONS[item.id] || []).map((text, idx) => `
       <div class="level-row">
         <div class="level-label">Lv.${idx + 1}</div>
-        <div class="level-text">${text}</div>
+        <div>
+          <div class="level-text">到達内容: ${text}</div>
+          <div class="level-action">到達アクション: ${(LEVEL_ACTIONS[item.id] || [])[idx] || ''}</div>
+        </div>
       </div>`).join('');
     return `
       <details class="guide-item">
@@ -465,6 +593,14 @@ function applyData(data) {
     });
     renderLevelGuide();
   }
+  if (data?.levelActionsByItem) {
+    Object.entries(data.levelActionsByItem).forEach(([id, levels]) => {
+      if (Array.isArray(levels) && levels.length === 10) {
+        LEVEL_ACTIONS[id] = levels;
+      }
+    });
+    renderLevelGuide();
+  }
   if (!data?.items) return;
   data.items.forEach(s => {
     const item = items.find(i => i.id === s.id);
@@ -476,6 +612,7 @@ function autoSave() {
   const data = {
     lastUpdated: new Date().toISOString(),
     levelGuideByItem: LEVEL_DESCRIPTIONS,
+    levelActionsByItem: LEVEL_ACTIONS,
     items: items.map(i => ({
       id: i.id,
       label: i.label,
@@ -565,7 +702,9 @@ items.forEach(item => {
     </div>
     <div class="item-desc">
       <div class="desc-now"  id="desc-now-${item.id}">▶ 現状 Lv.${item.now}: ${getDesc(item.id, item.now)}</div>
+      <div class="desc-action" id="action-now-${item.id}">   現状アクション: ${getAction(item.id, item.now)}</div>
       <div class="desc-goal" id="desc-goal-${item.id}">◎ 目標 Lv.${item.goal}: ${getDesc(item.id, item.goal)}</div>
+      <div class="desc-action" id="action-goal-${item.id}">   目標アクション: ${getAction(item.id, item.goal)}</div>
     </div>`;
   wrap.appendChild(div);
   document.getElementById(`now-${item.id}`).addEventListener('input',  update);
@@ -627,12 +766,14 @@ function update() {
     const v = parseInt(document.getElementById(`now-${i.id}`).value);
     document.getElementById(`now-val-${i.id}`).textContent = v;
     document.getElementById(`desc-now-${i.id}`).textContent  = `▶ 現状 Lv.${v}: ${getDesc(i.id, v)}`;
+    document.getElementById(`action-now-${i.id}`).textContent = `   現状アクション: ${getAction(i.id, v)}`;
     return v;
   });
   const goalData = items.map(i => {
     const v = parseInt(document.getElementById(`goal-${i.id}`).value);
     document.getElementById(`goal-val-${i.id}`).textContent = v;
     document.getElementById(`desc-goal-${i.id}`).textContent = `◎ 目標 Lv.${v}: ${getDesc(i.id, v)}`;
+    document.getElementById(`action-goal-${i.id}`).textContent = `   目標アクション: ${getAction(i.id, v)}`;
     return v;
   });
   radarChart.data.datasets[0].data = nowData;
