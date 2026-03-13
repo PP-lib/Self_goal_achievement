@@ -8,22 +8,22 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg-0: #f4f3ef;
-      --bg-1: #ffffff;
-      --bg-2: #f8f9f7;
-      --text-0: #1f2933;
-      --text-1: #52606d;
-      --line: #d9dfd4;
-      --accent: #2f7d6b;
-      --accent-2: #1f5566;
-      --warn: #c58a1d;
+      --bg-0: #0b1218;
+      --bg-1: #111b24;
+      --bg-2: #16242f;
+      --text-0: #e8f0f6;
+      --text-1: #8fa7ba;
+      --line: #243746;
+      --accent: #2fa39a;
+      --accent-2: #2d6f93;
+      --warn: #e8bb5c;
     }
 
     body {
       font-family: 'BIZ UDPGothic', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
       background:
-        radial-gradient(1200px 500px at 100% -10%, #d6ebe6 0%, transparent 55%),
-        radial-gradient(900px 500px at -10% 0%, #e6ece0 0%, transparent 50%),
+        radial-gradient(1200px 500px at 100% -10%, #133447 0%, transparent 55%),
+        radial-gradient(900px 500px at -10% 0%, #1d2a3f 0%, transparent 50%),
         var(--bg-0);
       color: var(--text-0);
       min-height: 100vh;
@@ -35,7 +35,7 @@
       font-size: 1.95rem;
       letter-spacing: 0.08em;
       margin-bottom: 6px;
-      color: #13333f;
+      color: #d7f3ff;
     }
     .subtitle {
       text-align: center;
@@ -50,14 +50,20 @@
       background: var(--bg-1);
       border: 1px solid var(--line);
       border-radius: 14px;
-      box-shadow: 0 10px 24px #2b3f2a14;
+      box-shadow: 0 12px 26px #02060a80;
       padding: 14px;
     }
     .simple-app h2 {
       font-size: 0.92rem;
-      color: #23404d;
-      margin-bottom: 10px;
+      color: #bde8ff;
+      margin-bottom: 6px;
       letter-spacing: 0.04em;
+    }
+    .simple-hint {
+      font-size: 0.76rem;
+      color: #82a3ba;
+      margin-bottom: 10px;
+      line-height: 1.45;
     }
     .simple-form {
       display: grid;
@@ -68,10 +74,10 @@
     }
     .simple-input {
       width: 100%;
-      border: 1px solid #c5d2ca;
+      border: 1px solid #2b4456;
       border-radius: 8px;
-      background: #fff;
-      color: #2b3a44;
+      background: #0c151d;
+      color: #dce8f0;
       font-size: 0.8rem;
       padding: 8px;
     }
@@ -91,8 +97,8 @@
       grid-template-columns: 90px 1.6fr 150px 1fr auto;
       gap: 8px;
       align-items: start;
-      background: #f9fbf8;
-      border: 1px solid #dbe2d8;
+      background: #13212b;
+      border: 1px solid #273d4d;
       border-radius: 10px;
       padding: 8px;
     }
@@ -102,10 +108,10 @@
       align-items: center;
     }
     .simple-empty {
-      background: #f4f7f4;
-      border: 1px dashed #cad5ca;
+      background: #101922;
+      border: 1px dashed #2d4353;
       border-radius: 10px;
-      color: #5b6775;
+      color: #89a2b4;
       padding: 12px;
       font-size: 0.82rem;
     }
@@ -122,7 +128,7 @@
       margin-left: auto;
       margin-right: auto;
       padding: 10px;
-      background: color-mix(in srgb, var(--bg-1) 88%, var(--accent) 12%);
+      background: color-mix(in srgb, var(--bg-1) 92%, var(--accent) 8%);
       border: 1px solid var(--line);
       border-radius: 14px;
     }
@@ -145,12 +151,12 @@
     .btn:hover  { opacity: 0.85; transform: translateY(-1px); }
     .btn:active { transform: translateY(0); }
     .btn-export { background: linear-gradient(135deg, #7ecfff, #b07eff); color: #0f0f1a; }
-    .btn-import { background: #f4f8f5; color: #22424d; border: 1px solid #cdd9d1; }
+    .btn-import { background: #1b2a36; color: #b8d7eb; border: 1px solid #314a5d; }
     .save-badge {
       font-size: 0.76rem;
-      color: #1f6649;
-      background: #eaf5ec;
-      border: 1px solid #bcd9c3;
+      color: #9cc8b5;
+      background: #142028;
+      border: 1px solid #2c4956;
       border-radius: 6px;
       padding: 5px 13px;
     }
@@ -597,10 +603,11 @@
 <p class="subtitle">Infinite goals, visible progress. Track milestones and momentum over time.</p>
 
 <section class="simple-app">
-  <h2>Action Log (レベル / 活動内容 / 完了日 / メモ)</h2>
+  <h2>Action Log (レベル / 定量活動設定 / 完了日 / メモ)</h2>
+  <p class="simple-hint">定量活動設定は、数字を含めて入力してください（例: 英会話 30分 x 週5日、読書 20ページ x 週4回）。</p>
   <div class="simple-form">
-    <input class="simple-input" id="simple-level" type="number" min="1" max="11" placeholder="レベル" />
-    <input class="simple-input" id="simple-activity" type="text" placeholder="活動内容" />
+    <input class="simple-input" id="simple-level" type="number" min="1" step="1" placeholder="レベル (上限なし)" />
+    <input class="simple-input" id="simple-activity" type="text" placeholder="定量活動設定（例: ラン 8km x 週3回）" />
     <input class="simple-input" id="simple-date" type="date" />
     <textarea class="simple-input memo" id="simple-memo" placeholder="メモ"></textarea>
     <button class="btn btn-export" onclick="addActionItem()">追加</button>
@@ -987,6 +994,10 @@ function addProgressEvent(item, message, source = 'system') {
   progressEvents = progressEvents.slice(0, 200);
 }
 
+function isQuantifiableActivity(text) {
+  return /\d/.test(String(text || ''));
+}
+
 function renderSimpleList() {
   const list = document.getElementById('simpleList');
   if (!list) return;
@@ -996,8 +1007,8 @@ function renderSimpleList() {
   }
   list.innerHTML = actionItems.map((row, idx) => `
     <div class="simple-item">
-      <input class="simple-input" type="number" min="1" max="11" id="row-level-${idx}" value="${Number.isFinite(row.level) ? row.level : ''}" />
-      <input class="simple-input" type="text" id="row-activity-${idx}" value="${escHtml(row.activity || '')}" />
+      <input class="simple-input" type="number" min="1" step="1" id="row-level-${idx}" value="${Number.isFinite(row.level) ? row.level : ''}" />
+      <input class="simple-input" type="text" id="row-activity-${idx}" value="${escHtml(row.activity || '')}" placeholder="定量活動設定（数字を含める）" />
       <input class="simple-input" type="date" id="row-date-${idx}" value="${escHtml(row.completedAt || '')}" />
       <textarea class="simple-input memo" id="row-memo-${idx}">${escHtml(row.memo || '')}</textarea>
       <div class="simple-actions">
@@ -1014,12 +1025,16 @@ async function addActionItem() {
   const dateInput = document.getElementById('simple-date');
   const memoInput = document.getElementById('simple-memo');
   const rawLevel = Number(levelInput?.value);
-  const level = Number.isFinite(rawLevel) ? Math.max(1, Math.min(11, Math.round(rawLevel))) : null;
+  const level = Number.isFinite(rawLevel) ? Math.max(1, Math.round(rawLevel)) : null;
   const activity = (activityInput?.value || '').trim();
   const completedAt = (dateInput?.value || '').trim();
   const memo = (memoInput?.value || '').trim();
   if (!level || !activity) {
-    alert('レベルと活動内容を入力してください。');
+    alert('レベルと定量活動設定を入力してください。');
+    return;
+  }
+  if (!isQuantifiableActivity(activity)) {
+    alert('定量活動設定には数字を含めてください。例: 30分 x 週5日');
     return;
   }
   actionItems.unshift({
@@ -1043,12 +1058,16 @@ async function saveActionRow(idx) {
   const row = actionItems[idx];
   if (!row) return;
   const rawLevel = Number(document.getElementById(`row-level-${idx}`)?.value);
-  const level = Number.isFinite(rawLevel) ? Math.max(1, Math.min(11, Math.round(rawLevel))) : null;
+  const level = Number.isFinite(rawLevel) ? Math.max(1, Math.round(rawLevel)) : null;
   const activity = (document.getElementById(`row-activity-${idx}`)?.value || '').trim();
   const completedAt = (document.getElementById(`row-date-${idx}`)?.value || '').trim();
   const memo = (document.getElementById(`row-memo-${idx}`)?.value || '').trim();
   if (!level || !activity) {
-    alert('レベルと活動内容は必須です。');
+    alert('レベルと定量活動設定は必須です。');
+    return;
+  }
+  if (!isQuantifiableActivity(activity)) {
+    alert('定量活動設定には数字を含めてください。例: 20ページ x 週4回');
     return;
   }
   actionItems[idx] = {
@@ -1968,13 +1987,13 @@ function applyData(data) {
   }
   if (Array.isArray(data?.actionItems)) {
     actionItems = data.actionItems.map(r => ({
-      level: Number.isFinite(Number(r.level)) ? Math.max(1, Math.min(11, Math.round(Number(r.level)))) : null,
+      level: Number.isFinite(Number(r.level)) ? Math.max(1, Math.round(Number(r.level))) : null,
       activity: String(r.activity || ''),
       completedAt: String(r.completedAt || ''),
       memo: String(r.memo || ''),
       createdAt: String(r.createdAt || ''),
       updatedAt: String(r.updatedAt || ''),
-    })).filter(r => r.level && r.activity.trim());
+    })).filter(r => r.level && r.activity.trim() && isQuantifiableActivity(r.activity));
   }
   currentVersion = data?.appMeta?.version || currentVersion;
   renderSimpleList();
