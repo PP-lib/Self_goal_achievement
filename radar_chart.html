@@ -270,14 +270,16 @@
 <body>
 
 <h1>自己成長レーダーチャート</h1>
-<p class="subtitle">スコア 1〜10　|　スライダーで調整、ブラウザに自動保存されます</p>
+<p class="subtitle">スコア 1〜10　|　ブラウザ内DBに自動保存（履歴5件）</p>
 
 <div class="toolbar">
   <button class="btn btn-export" onclick="exportJSON()">⬇ JSONを保存</button>
   <button class="btn btn-import" onclick="document.getElementById('importInput').click()">⬆ JSONを読み込む</button>
+  <button class="btn btn-import" onclick="restoreFromHistory()">↺ 履歴から復元</button>
   <button class="btn btn-import" onclick="linkProjectJsonFile()">🔗 プロジェクトJSON連携</button>
   <input type="file" id="importInput" accept=".json" onchange="importJSON(this)" />
   <span class="save-badge" id="saveBadge">● 保存なし（初回起動）</span>
+  <span class="save-badge" id="storeBadge">● 保存先: 初期化中</span>
   <span class="save-badge" id="fileSyncBadge">● プロジェクトJSON未連携</span>
 </div>
 
@@ -584,6 +586,68 @@ function renderLevelGuide() {
 renderLevelGuide();
 
 // ── Storage ───────────────────────────────────────────────────────────────────
+const DB_NAME = 'selfGoalAchievementDB';
+const DB_VERSION = 1;
+const DB_STORE = 'appState';
+const DB_KEY_LATEST = 'latest';
+const DB_KEY_HISTORY = 'history';
+let currentVersion = 0;
+let lastSerialized = '';
+let lastHistoryAt = 0;
+
+function setStoreBadge(text) {
+  document.getElementById('storeBadge').textContent = text;
+}
+
+function openAppDB() {
+  return new Promise((resolve, reject) => {
+    if (!window.indexedDB) {
+      reject(new Error('IndexedDB not supported'));
+      return;
+    }
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(DB_STORE)) {
+        db.createObjectStore(DB_STORE, { keyPath: 'id' });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function idbPut(id, value) {
+  const db = await openAppDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).put({ id, value });
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(tx.error); };
+  });
+}
+
+async function idbGet(id) {
+  const db = await openAppDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DB_STORE, 'readonly');
+    const req = tx.objectStore(DB_STORE).get(id);
+    req.onsuccess = () => resolve(req.result ? req.result.value : null);
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+function setInputsFromData(data) {
+  if (!data?.items) return;
+  data.items.forEach(s => {
+    const nowEl = document.getElementById(`now-${s.id}`);
+    const goalEl = document.getElementById(`goal-${s.id}`);
+    if (nowEl) nowEl.value = s.now;
+    if (goalEl) goalEl.value = s.goal;
+  });
+}
+
 function applyData(data) {
   if (data?.levelGuideByItem) {
     Object.entries(data.levelGuideByItem).forEach(([id, levels]) => {
@@ -606,11 +670,17 @@ function applyData(data) {
     const item = items.find(i => i.id === s.id);
     if (item) { item.now = s.now; item.goal = s.goal; }
   });
+  currentVersion = data?.appMeta?.version || currentVersion;
 }
 
-function autoSave() {
+async function autoSave(options = {}) {
+  const forceHistory = options.forceHistory === true;
   const data = {
     lastUpdated: new Date().toISOString(),
+    appMeta: {
+      version: currentVersion + 1,
+      storage: 'indexeddb',
+    },
     levelGuideByItem: LEVEL_DESCRIPTIONS,
     levelActionsByItem: LEVEL_ACTIONS,
     items: items.map(i => ({
@@ -620,15 +690,101 @@ function autoSave() {
       goal: parseInt(document.getElementById(`goal-${i.id}`).value),
     })),
   };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  const serialized = JSON.stringify(data);
+  localStorage.setItem(STORAGE_KEY, serialized);
+  try {
+    await idbPut(DB_KEY_LATEST, data);
+    let history = await idbGet(DB_KEY_HISTORY);
+    if (!Array.isArray(history)) history = [];
+    const now = Date.now();
+    const shouldAddHistory = forceHistory || (serialized !== lastSerialized && (now - lastHistoryAt > 30000));
+    if (shouldAddHistory) {
+      history.unshift({ savedAt: data.lastUpdated, version: data.appMeta.version, data });
+      history = history.slice(0, 5);
+      await idbPut(DB_KEY_HISTORY, history);
+      lastHistoryAt = now;
+    }
+    setStoreBadge('● 保存先: IndexedDB');
+  } catch (e) {
+    setStoreBadge('● 保存先: localStorage(フォールバック)');
+  }
+  lastSerialized = serialized;
+  currentVersion = data.appMeta.version;
   const t = new Date(data.lastUpdated);
   const ts = `${t.getFullYear()}/${t.getMonth()+1}/${t.getDate()} `
            + `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
   document.getElementById('saveBadge').textContent = `● 自動保存: ${ts}`;
   if (projectFileHandle) {
-    syncToProjectJson(data);
+    await syncToProjectJson(data);
   }
   return data;
+}
+
+async function loadFromBrowserStorage() {
+  try {
+    const latest = await idbGet(DB_KEY_LATEST);
+    if (latest?.items) {
+      applyData(latest);
+      setInputsFromData(latest);
+      if (latest.lastUpdated) {
+        const t = new Date(latest.lastUpdated);
+        const ts = `${t.getFullYear()}/${t.getMonth()+1}/${t.getDate()} `
+                 + `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+        document.getElementById('saveBadge').textContent = `● 自動保存: ${ts}`;
+      }
+      setStoreBadge('● 保存先: IndexedDB');
+      update();
+      return;
+    }
+  } catch (e) {
+    setStoreBadge('● 保存先: localStorage(フォールバック)');
+  }
+
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      setStoreBadge('● 保存先: IndexedDB');
+      return;
+    }
+    const data = JSON.parse(raw);
+    applyData(data);
+    setInputsFromData(data);
+    update();
+    await autoSave({ forceHistory: true });
+  } catch (e) {
+    // use defaults
+  }
+}
+
+async function restoreFromHistory() {
+  let history = [];
+  try {
+    history = await idbGet(DB_KEY_HISTORY);
+  } catch (e) {
+    alert('履歴の取得に失敗しました。');
+    return;
+  }
+  if (!Array.isArray(history) || history.length === 0) {
+    alert('復元できる履歴がありません。');
+    return;
+  }
+  const list = history.map((h, i) => {
+    const t = new Date(h.savedAt);
+    const ts = `${t.getFullYear()}/${t.getMonth()+1}/${t.getDate()} ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+    return `${i + 1}. v${h.version || '-'} / ${ts}`;
+  }).join('\n');
+  const picked = prompt(`復元する履歴番号を入力してください:\n${list}`, '1');
+  if (!picked) return;
+  const idx = Number(picked) - 1;
+  if (!Number.isInteger(idx) || idx < 0 || idx >= history.length) {
+    alert('番号が不正です。');
+    return;
+  }
+  const selected = history[idx].data;
+  applyData(selected);
+  setInputsFromData(selected);
+  update();
+  await autoSave({ forceHistory: true });
 }
 
 async function syncToProjectJson(data) {
@@ -659,27 +815,12 @@ async function linkProjectJsonFile() {
     });
     projectFileHandle = handle;
     document.getElementById('fileSyncBadge').textContent = `● 連携中: ${handle.name}`;
-    await syncToProjectJson(autoSave());
+    const data = await autoSave({ forceHistory: true });
+    await syncToProjectJson(data);
   } catch (e) {
     // user canceled
   }
 }
-
-// Load saved data before building UI
-let initialTs = null;
-(function loadInitial() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    const data = JSON.parse(raw);
-    applyData(data);
-    if (data.lastUpdated) {
-      const t = new Date(data.lastUpdated);
-      initialTs = `${t.getFullYear()}/${t.getMonth()+1}/${t.getDate()} `
-                + `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
-    }
-  } catch(e) { /* use defaults */ }
-})();
 
 // ── Build slider UI ───────────────────────────────────────────────────────────
 const catContainer = { study: 'controls-study', hobby: 'controls-hobby', work: 'controls-work' };
@@ -757,8 +898,8 @@ const radarChart = new Chart(ctx, {
   },
 });
 
-// Set the loaded timestamp on the badge
-if (initialTs) document.getElementById('saveBadge').textContent = `● 自動保存: ${initialTs}`;
+// Load browser-stored snapshot after UI is ready
+loadFromBrowserStorage();
 
 // ── Live update ───────────────────────────────────────────────────────────────
 function update() {
@@ -783,8 +924,8 @@ function update() {
 }
 
 // ── Export JSON ───────────────────────────────────────────────────────────────
-function exportJSON() {
-  const data = autoSave();
+async function exportJSON() {
+  const data = await autoSave({ forceHistory: true });
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -798,18 +939,14 @@ function importJSON(input) {
   const file = input.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = e => {
+  reader.onload = async e => {
     try {
       const data = JSON.parse(e.target.result);
       if (!data?.items) { alert('有効なJSONファイルではありません'); return; }
       applyData(data);
-      data.items.forEach(s => {
-        const nowEl  = document.getElementById(`now-${s.id}`);
-        const goalEl = document.getElementById(`goal-${s.id}`);
-        if (nowEl)  nowEl.value  = s.now;
-        if (goalEl) goalEl.value = s.goal;
-      });
+      setInputsFromData(data);
       update();
+      await autoSave({ forceHistory: true });
     } catch(err) {
       alert('JSONの読み込みに失敗しました');
     }
