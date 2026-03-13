@@ -110,6 +110,9 @@ The app now stores per-item milestone data:
 
 - target title
 - target date
+- numeric metric name
+- current value / target value
+- unit
 - memo
 - comments
 

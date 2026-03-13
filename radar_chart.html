@@ -250,6 +250,21 @@
       gap: 6px;
       grid-column: 1 / -1;
     }
+    .metric-grid {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr 0.8fr;
+      gap: 6px;
+    }
+    .metric-badge {
+      grid-column: 1 / -1;
+      font-size: 0.7rem;
+      color: #9fd8ff;
+      background: #171f34;
+      border: 1px solid #2e4c7b;
+      border-radius: 8px;
+      padding: 6px 8px;
+    }
     .comment-list {
       margin-top: 7px;
       max-height: 110px;
@@ -392,6 +407,9 @@
       }
       .timeline-row {
         grid-template-columns: 1fr;
+      }
+      .metric-grid {
+        grid-template-columns: 1fr 1fr;
       }
     }
   </style>
@@ -759,6 +777,10 @@ function getMilestoneRecord(item) {
       itemLabel: item.label,
       targetTitle: '',
       targetDate: '',
+      metricName: '',
+      metricUnit: '',
+      metricCurrent: null,
+      metricTarget: null,
       memo: '',
       comments: [],
       updatedAt: '',
@@ -806,6 +828,8 @@ function renderJourneyBoard() {
   el.innerHTML = items.map(i => {
     const pct = Math.round((Math.max(1, i.now) / 10) * 100);
     const rec = getMilestoneRecord(i);
+    const hasMetric = Number.isFinite(rec.metricCurrent) && Number.isFinite(rec.metricTarget) && rec.metricTarget !== 0;
+    const metricPct = hasMetric ? Math.max(0, Math.min(999, Math.round((rec.metricCurrent / rec.metricTarget) * 100))) : null;
     const commentsHtml = (rec.comments || []).slice(0, 8).map(c => `
       <div class="comment-row">
         <div class="comment-time">${formatTs(c.at)}</div>
@@ -820,9 +844,16 @@ function renderJourneyBoard() {
         <div class="milestone-form">
           <input class="milestone-input" id="target-title-${i.id}" value="${escHtml(rec.targetTitle)}" placeholder="到達目標（例: 英会話で業務説明を英語のみで完了）" />
           <input class="milestone-input" id="target-date-${i.id}" type="date" value="${escHtml(rec.targetDate)}" />
+          <div class="metric-grid">
+            <input class="milestone-input" id="metric-name-${i.id}" value="${escHtml(rec.metricName)}" placeholder="数値指標名（例: 週の走行距離）" />
+            <input class="milestone-input" id="metric-current-${i.id}" type="number" step="any" value="${rec.metricCurrent ?? ''}" placeholder="現在値" />
+            <input class="milestone-input" id="metric-target-${i.id}" type="number" step="any" value="${rec.metricTarget ?? ''}" placeholder="目標値" />
+            <input class="milestone-input" id="metric-unit-${i.id}" value="${escHtml(rec.metricUnit)}" placeholder="単位" />
+          </div>
+          <div class="metric-badge">${hasMetric ? `${escHtml(rec.metricName || '進捗')} : ${rec.metricCurrent}/${rec.metricTarget}${rec.metricUnit ? ' ' + escHtml(rec.metricUnit) : ''} (${metricPct}%)` : '数値指標を設定すると進捗率を表示できます'}</div>
           <textarea class="milestone-textarea" id="memo-${i.id}" placeholder="メモ・振り返り">${escHtml(rec.memo)}</textarea>
           <div class="milestone-actions">
-            <button class="mini-btn" onclick="saveMilestoneMeta('${i.id}')">目標/到達日/メモを保存</button>
+            <button class="mini-btn" onclick="saveMilestoneMeta('${i.id}')">目標/到達日/数値/メモを保存</button>
             <button class="mini-btn" onclick="markStepCleared('${i.id}')">この過程をクリアとして記録</button>
           </div>
           <input class="milestone-input" id="comment-${i.id}" placeholder="コメントを追加（例: 今日の改善点）" />
@@ -864,6 +895,12 @@ async function saveMilestoneMeta(itemId) {
   if (!item) return;
   const targetTitle = (document.getElementById(`target-title-${itemId}`)?.value || '').trim();
   const targetDate = (document.getElementById(`target-date-${itemId}`)?.value || '').trim();
+  const metricName = (document.getElementById(`metric-name-${itemId}`)?.value || '').trim();
+  const metricUnit = (document.getElementById(`metric-unit-${itemId}`)?.value || '').trim();
+  const rawCurrent = (document.getElementById(`metric-current-${itemId}`)?.value || '').trim();
+  const rawTarget = (document.getElementById(`metric-target-${itemId}`)?.value || '').trim();
+  const metricCurrent = rawCurrent === '' ? null : Number(rawCurrent);
+  const metricTarget = rawTarget === '' ? null : Number(rawTarget);
   const memo = (document.getElementById(`memo-${itemId}`)?.value || '').trim();
   milestoneRecords[itemId] = {
     ...getMilestoneRecord(item),
@@ -871,10 +908,17 @@ async function saveMilestoneMeta(itemId) {
     itemLabel: item.label,
     targetTitle,
     targetDate,
+    metricName,
+    metricUnit,
+    metricCurrent: Number.isFinite(metricCurrent) ? metricCurrent : null,
+    metricTarget: Number.isFinite(metricTarget) ? metricTarget : null,
     memo,
     updatedAt: new Date().toISOString(),
   };
-  addProgressEvent(item, `目標情報を更新（${targetTitle || '目標未設定'}）`, 'meta');
+  const metricMsg = Number.isFinite(metricCurrent) && Number.isFinite(metricTarget)
+    ? ` / ${metricName || '数値'}: ${metricCurrent}->${metricTarget}${metricUnit ? metricUnit : ''}`
+    : '';
+  addProgressEvent(item, `目標情報を更新（${targetTitle || '目標未設定'}${metricMsg}）`, 'meta');
   renderJourneyBoard();
   renderTimeline();
   await autoSave({ forceHistory: true });
@@ -1036,7 +1080,7 @@ async function fetchSupabaseMilestonesAndComments() {
   const cfg = supabaseSyncConfig;
   const key = encodeURIComponent(cfg.stateKey);
   try {
-    const milestoneRes = await fetch(`${supabaseMilestoneTableUrl(cfg)}?state_key=eq.${key}&select=item_id,item_label,target_title,target_date,memo,updated_at`, {
+    const milestoneRes = await fetch(`${supabaseMilestoneTableUrl(cfg)}?state_key=eq.${key}&select=item_id,item_label,target_title,target_date,metric_name,metric_unit,metric_current,metric_target,memo,updated_at`, {
       headers: buildSupabaseHeaders(cfg, false),
       cache: 'no-store',
     });
@@ -1056,6 +1100,10 @@ async function fetchSupabaseMilestonesAndComments() {
         itemLabel: r.item_label || (items.find(i => i.id === r.item_id)?.label || r.item_id),
         targetTitle: r.target_title || '',
         targetDate: r.target_date || '',
+        metricName: r.metric_name || '',
+        metricUnit: r.metric_unit || '',
+        metricCurrent: r.metric_current ?? null,
+        metricTarget: r.metric_target ?? null,
         memo: r.memo || '',
         updatedAt: r.updated_at || '',
         comments: [],
@@ -1070,6 +1118,10 @@ async function fetchSupabaseMilestonesAndComments() {
           itemLabel: found ? found.label : c.item_id,
           targetTitle: '',
           targetDate: '',
+          metricName: '',
+          metricUnit: '',
+          metricCurrent: null,
+          metricTarget: null,
           memo: '',
           updatedAt: '',
           comments: [],
@@ -1104,6 +1156,10 @@ async function saveMilestoneRecordToSupabase(itemId) {
         item_label: item.label,
         target_title: r.targetTitle || '',
         target_date: r.targetDate || null,
+        metric_name: r.metricName || '',
+        metric_unit: r.metricUnit || '',
+        metric_current: Number.isFinite(r.metricCurrent) ? r.metricCurrent : null,
+        metric_target: Number.isFinite(r.metricTarget) ? r.metricTarget : null,
         memo: r.memo || '',
         updated_at: new Date().toISOString(),
       },
@@ -1620,7 +1676,19 @@ function applyData(data) {
     progressEvents = data.progressEvents.slice(0, 200);
   }
   if (data?.milestoneRecords && typeof data.milestoneRecords === 'object') {
-    milestoneRecords = data.milestoneRecords;
+    milestoneRecords = Object.fromEntries(Object.entries(data.milestoneRecords).map(([k, v]) => [k, {
+      itemId: v.itemId || k,
+      itemLabel: v.itemLabel || (items.find(i => i.id === k)?.label || k),
+      targetTitle: v.targetTitle || '',
+      targetDate: v.targetDate || '',
+      metricName: v.metricName || '',
+      metricUnit: v.metricUnit || '',
+      metricCurrent: Number.isFinite(v.metricCurrent) ? v.metricCurrent : null,
+      metricTarget: Number.isFinite(v.metricTarget) ? v.metricTarget : null,
+      memo: v.memo || '',
+      comments: Array.isArray(v.comments) ? v.comments : [],
+      updatedAt: v.updatedAt || '',
+    }]));
   }
   currentVersion = data?.appMeta?.version || currentVersion;
 }
