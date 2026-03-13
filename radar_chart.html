@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>自己成長レーダーチャート</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <title>自己成長ジャーニーボード</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -140,17 +139,110 @@
       align-items: stretch;
     }
 
-    .chart-wrapper {
+    .journey-top {
       width: 100%;
       max-width: 1120px;
       margin: 0 auto 16px;
-      background: #16162a;
-      border-radius: 16px;
-      padding: 24px;
-      box-shadow: 0 4px 32px #0006;
-      min-width: 0;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
     }
-    .chart-wrapper canvas { max-width: 100%; }
+
+    .focus-panel,
+    .timeline-panel,
+    .journey-board {
+      background: #16162a;
+      border-radius: 14px;
+      box-shadow: 0 4px 16px #0005;
+      padding: 14px 16px;
+    }
+    .focus-panel h2,
+    .timeline-panel h2,
+    .journey-board h2 {
+      font-size: 0.86rem;
+      color: #d8cdfd;
+      letter-spacing: 0.06em;
+      margin-bottom: 10px;
+    }
+    .focus-list {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(220px, 1fr));
+      gap: 8px;
+    }
+    .focus-item {
+      background: #1b1b32;
+      border-radius: 10px;
+      padding: 10px;
+      font-size: 0.75rem;
+      line-height: 1.45;
+    }
+    .focus-item strong { color: #9fd8ff; }
+    .focus-gap { color: #ffd96b; font-size: 0.72rem; }
+
+    .journey-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(280px, 1fr));
+      gap: 8px;
+    }
+    .journey-card {
+      background: #1b1b32;
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .journey-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      font-size: 0.78rem;
+    }
+    .journey-head strong { color: #e9edff; }
+    .journey-head span { color: #ffd96b; }
+    .journey-track {
+      height: 8px;
+      background: #2b2b46;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 7px;
+    }
+    .journey-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #7ecfff, #89f0b4);
+      border-radius: 999px;
+    }
+    .journey-next {
+      font-size: 0.72rem;
+      color: #a9b0c9;
+      margin-bottom: 8px;
+    }
+    .mini-btn {
+      border: 1px solid #3a3a5a;
+      background: #21213a;
+      color: #bfe3ff;
+      border-radius: 8px;
+      padding: 5px 8px;
+      font-size: 0.7rem;
+      cursor: pointer;
+    }
+
+    .timeline-list {
+      max-height: 280px;
+      overflow: auto;
+      display: grid;
+      gap: 6px;
+    }
+    .timeline-row {
+      display: grid;
+      grid-template-columns: 130px 1fr;
+      gap: 8px;
+      font-size: 0.72rem;
+      line-height: 1.4;
+      background: #1b1b32;
+      border-radius: 8px;
+      padding: 7px 8px;
+    }
+    .timeline-time { color: #9ea6c5; }
+    .timeline-text { color: #d9dff9; }
 
     .controls-wrapper {
       width: 100%;
@@ -245,25 +337,15 @@
       margin-left: 12px;
     }
 
-    /* ---- Legend ---- */
-    .legend {
-      display: flex;
-      gap: 20px;
-      justify-content: center;
-      margin-top: 14px;
-    }
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.8rem;
-      color: #aaa;
-    }
-    .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
-    .dot-current { background: #7ecfff; }
-    .dot-target  { background: #ffd700; }
     @media (max-width: 820px) {
       .level-grid {
+        grid-template-columns: 1fr;
+      }
+      .focus-list,
+      .journey-grid {
+        grid-template-columns: 1fr;
+      }
+      .timeline-row {
         grid-template-columns: 1fr;
       }
     }
@@ -271,16 +353,23 @@
 </head>
 <body>
 
-<div class="chart-wrapper">
-  <canvas id="radarChart"></canvas>
-  <div class="legend">
-    <div class="legend-item"><div class="legend-dot dot-current"></div>現状 Now</div>
-    <div class="legend-item"><div class="legend-dot dot-target"></div>目標 Goal</div>
+<section class="journey-top">
+  <div class="focus-panel">
+    <h2>今週のフォーカス（差分が大きい順）</h2>
+    <div class="focus-list" id="focusList"></div>
   </div>
-</div>
+  <div class="journey-board">
+    <h2>進捗ジャーニー</h2>
+    <div class="journey-grid" id="journeyBoard"></div>
+  </div>
+  <div class="timeline-panel">
+    <h2>達成タイムライン</h2>
+    <div class="timeline-list" id="timelineList"></div>
+  </div>
+</section>
 
-<h1>自己成長レーダーチャート</h1>
-<p class="subtitle">スコア 1〜10　|　ブラウザ内DBに自動保存（履歴5件）</p>
+<h1>自己成長ジャーニーボード</h1>
+<p class="subtitle">目標は無限。過程の達成を時系列で積み上げる。</p>
 
 <div class="toolbar">
   <button class="btn btn-export" id="applyEditsBtn" onclick="applyEditsNow()">✅ 編集を反映</button>
@@ -606,6 +695,79 @@ const items = [
   { id: 'coaching',   label: '人材コーチング',       cat: 'work',  now: 4, goal: 9 },
   { id: 'framework',  label: 'フレームワーク確立',   cat: 'work',  now: 3, goal: 9 },
 ];
+let progressEvents = [];
+
+function formatTs(ts) {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return String(ts || '');
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function addProgressEvent(item, message, source = 'system') {
+  progressEvents.unshift({
+    at: new Date().toISOString(),
+    itemId: item.id,
+    itemLabel: item.label,
+    message,
+    source,
+  });
+  progressEvents = progressEvents.slice(0, 200);
+}
+
+function renderFocusList() {
+  const el = document.getElementById('focusList');
+  if (!el) return;
+  const ranked = [...items]
+    .map(i => ({ ...i, gap: Math.max(0, i.goal - i.now) }))
+    .sort((a, b) => b.gap - a.gap)
+    .slice(0, 3);
+  el.innerHTML = ranked.map(i => `
+    <div class="focus-item">
+      <div><strong>${i.label}</strong></div>
+      <div class="focus-gap">差分: Lv.${i.gap}</div>
+      <div>次アクション: ${getAction(i.id, i.now)}</div>
+    </div>
+  `).join('');
+}
+
+function renderJourneyBoard() {
+  const el = document.getElementById('journeyBoard');
+  if (!el) return;
+  el.innerHTML = items.map(i => {
+    const pct = Math.round((Math.max(1, i.now) / 10) * 100);
+    return `
+      <div class="journey-card">
+        <div class="journey-head"><strong>${i.label}</strong><span>Lv.${i.now} / ${i.goal}</span></div>
+        <div class="journey-track"><div class="journey-fill" style="width:${pct}%"></div></div>
+        <div class="journey-next">次: ${getDesc(i.id, Math.min(10, i.now + 1)) || '継続'}</div>
+        <button class="mini-btn" onclick="markStepCleared('${i.id}')">この過程をクリアとして記録</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderTimeline() {
+  const el = document.getElementById('timelineList');
+  if (!el) return;
+  if (!progressEvents.length) {
+    el.innerHTML = '<div class="timeline-row"><div class="timeline-time">-</div><div class="timeline-text">まだ達成ログはありません。スライダー変更か「クリア記録」で蓄積されます。</div></div>';
+    return;
+  }
+  el.innerHTML = progressEvents.slice(0, 40).map(e => `
+    <div class="timeline-row">
+      <div class="timeline-time">${formatTs(e.at)}</div>
+      <div class="timeline-text">${e.itemLabel}: ${e.message}</div>
+    </div>
+  `).join('');
+}
+
+function markStepCleared(itemId) {
+  const item = items.find(i => i.id === itemId);
+  if (!item) return;
+  addProgressEvent(item, `Lv.${item.now} を過程クリア`, 'manual');
+  renderTimeline();
+  autoSave({ forceHistory: true });
+}
 
 function renderLevelGuide() {
   const container = document.getElementById('levelGuideList');
@@ -838,7 +1000,7 @@ async function configureSupabaseSync() {
   if (remote?.items) {
     applyData(remote);
     setInputsFromData(remote);
-    update();
+    renderFromInputs(false);
   }
 }
 
@@ -1002,24 +1164,37 @@ function setApplyButtonBusy(isBusy) {
   btn.textContent = isBusy ? '⏳ 反映中...' : '✅ 編集を反映';
 }
 
-function renderFromInputs() {
-  const nowData  = items.map(i => {
-    const v = parseInt(document.getElementById(`now-${i.id}`).value);
-    document.getElementById(`now-val-${i.id}`).textContent = v;
-    document.getElementById(`desc-now-${i.id}`).textContent  = `▶ 現状 Lv.${v}: ${getDesc(i.id, v)}`;
-    document.getElementById(`action-now-${i.id}`).textContent = `   現状アクション: ${getAction(i.id, v)}`;
-    return v;
+function renderFromInputs(trackChanges = false) {
+  items.forEach(i => {
+    const prevNow = i.now;
+    const prevGoal = i.goal;
+    const nowVal = parseInt(document.getElementById(`now-${i.id}`).value);
+    const goalVal = parseInt(document.getElementById(`goal-${i.id}`).value);
+    i.now = nowVal;
+    i.goal = goalVal;
+
+    document.getElementById(`now-val-${i.id}`).textContent = nowVal;
+    document.getElementById(`desc-now-${i.id}`).textContent  = `▶ 現状 Lv.${nowVal}: ${getDesc(i.id, nowVal)}`;
+    document.getElementById(`action-now-${i.id}`).textContent = `   現状アクション: ${getAction(i.id, nowVal)}`;
+
+    document.getElementById(`goal-val-${i.id}`).textContent = goalVal;
+    document.getElementById(`desc-goal-${i.id}`).textContent = `◎ 目標 Lv.${goalVal}: ${getDesc(i.id, goalVal)}`;
+    document.getElementById(`action-goal-${i.id}`).textContent = `   目標アクション: ${getAction(i.id, goalVal)}`;
+
+    if (trackChanges && prevNow !== nowVal) {
+      const msg = nowVal > prevNow
+        ? `Lv.${prevNow} → Lv.${nowVal} に更新`
+        : `Lv.${prevNow} → Lv.${nowVal} に再設定`;
+      addProgressEvent(i, msg, 'slider');
+    }
+    if (trackChanges && prevGoal !== goalVal) {
+      addProgressEvent(i, `目標を Lv.${prevGoal} → Lv.${goalVal} に変更`, 'slider');
+    }
   });
-  const goalData = items.map(i => {
-    const v = parseInt(document.getElementById(`goal-${i.id}`).value);
-    document.getElementById(`goal-val-${i.id}`).textContent = v;
-    document.getElementById(`desc-goal-${i.id}`).textContent = `◎ 目標 Lv.${v}: ${getDesc(i.id, v)}`;
-    document.getElementById(`action-goal-${i.id}`).textContent = `   目標アクション: ${getAction(i.id, v)}`;
-    return v;
-  });
-  radarChart.data.datasets[0].data = nowData;
-  radarChart.data.datasets[1].data = goalData;
-  radarChart.update();
+
+  renderFocusList();
+  renderJourneyBoard();
+  renderTimeline();
 }
 
 async function refreshAfterApply() {
@@ -1072,7 +1247,7 @@ async function configureGitHubSync() {
   if (remote?.items) {
     applyData(remote);
     setInputsFromData(remote);
-    update();
+    renderFromInputs(false);
   }
 }
 
@@ -1192,6 +1367,9 @@ function applyData(data) {
     const item = items.find(i => i.id === s.id);
     if (item) { item.now = s.now; item.goal = s.goal; }
   });
+  if (Array.isArray(data.progressEvents)) {
+    progressEvents = data.progressEvents.slice(0, 200);
+  }
   currentVersion = data?.appMeta?.version || currentVersion;
 }
 
@@ -1205,6 +1383,7 @@ async function autoSave(options = {}) {
     },
     levelGuideByItem: LEVEL_DESCRIPTIONS,
     levelActionsByItem: LEVEL_ACTIONS,
+    progressEvents,
     items: items.map(i => ({
       id: i.id,
       label: i.label,
@@ -1268,7 +1447,7 @@ async function loadFromBrowserStorage() {
     setInputsFromData(serverData);
     setStoreBadge('● 保存先: IndexedDB + GitHub JSON');
     setServerBadge('● GitHub JSON同期: 有効');
-    update();
+    renderFromInputs(false);
     return;
   }
 
@@ -1327,7 +1506,7 @@ async function loadFromBrowserStorage() {
     } else {
       setStoreBadge('● 保存先: scores.json（GitHub）');
     }
-    update();
+    renderFromInputs(false);
     return;
   }
 
@@ -1430,58 +1609,13 @@ items.forEach(item => {
   document.getElementById(`goal-${item.id}`).addEventListener('input', update);
 });
 
-// ── Chart.js setup ────────────────────────────────────────────────────────────
-const ctx = document.getElementById('radarChart').getContext('2d');
-const radarChart = new Chart(ctx, {
-  type: 'radar',
-  data: {
-    labels: items.map(i => i.label),
-    datasets: [
-      {
-        label: '現状 Now',
-        data: items.map(i => i.now),
-        backgroundColor: 'rgba(126,207,255,0.18)',
-        borderColor: 'rgba(126,207,255,0.9)',
-        pointBackgroundColor: 'rgba(126,207,255,1)',
-        borderWidth: 2,
-        pointRadius: 4,
-      },
-      {
-        label: '目標 Goal',
-        data: items.map(i => i.goal),
-        backgroundColor: 'rgba(255,215,0,0.12)',
-        borderColor: 'rgba(255,215,0,0.9)',
-        pointBackgroundColor: 'rgba(255,215,0,1)',
-        borderDash: [5,3],
-        borderWidth: 2,
-        pointRadius: 4,
-      },
-    ],
-  },
-  options: {
-    responsive: true,
-    scales: {
-      r: {
-        min: 0, max: 10,
-        ticks: { stepSize: 2, color: '#555', backdropColor: 'transparent', font: { size: 10 } },
-        grid:        { color: '#2a2a44' },
-        angleLines:  { color: '#2a2a44' },
-        pointLabels: { color: '#ccc', font: { size: 12 } },
-      },
-    },
-    plugins: {
-      legend: { display: false },
-      tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.r} / 10` } },
-    },
-  },
-});
-
 // Load browser-stored snapshot after UI is ready
+renderFromInputs(false);
 loadFromBrowserStorage();
 
 // ── Live update ───────────────────────────────────────────────────────────────
 function update() {
-  renderFromInputs();
+  renderFromInputs(true);
   autoSave();
 }
 
