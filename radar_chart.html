@@ -316,6 +316,7 @@
 
 <script>
 const STORAGE_KEY = 'selfGoalData_v2';
+const API_STATE_ENDPOINT = '/api/state';
 let projectFileHandle = null;
 
 const LEVEL_DESCRIPTIONS = {
@@ -599,6 +600,36 @@ function setStoreBadge(text) {
   document.getElementById('storeBadge').textContent = text;
 }
 
+function setServerBadge(text) {
+  document.getElementById('fileSyncBadge').textContent = text;
+}
+
+async function fetchServerState() {
+  try {
+    const res = await fetch(API_STATE_ENDPOINT, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
+}
+
+async function saveToServerJson(data) {
+  try {
+    const res = await fetch(API_STATE_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error('save failed');
+    setServerBadge('● GitHub JSON同期: 成功');
+    return true;
+  } catch (e) {
+    setServerBadge('● GitHub JSON同期: 失敗');
+    return false;
+  }
+}
+
 function openAppDB() {
   return new Promise((resolve, reject) => {
     if (!window.indexedDB) {
@@ -717,10 +748,21 @@ async function autoSave(options = {}) {
   if (projectFileHandle) {
     await syncToProjectJson(data);
   }
+  await saveToServerJson(data);
   return data;
 }
 
 async function loadFromBrowserStorage() {
+  const serverData = await fetchServerState();
+  if (serverData?.items) {
+    applyData(serverData);
+    setInputsFromData(serverData);
+    setStoreBadge('● 保存先: IndexedDB + GitHub JSON');
+    setServerBadge('● GitHub JSON同期: 有効');
+    update();
+    return;
+  }
+
   try {
     const latest = await idbGet(DB_KEY_LATEST);
     if (latest?.items) {
@@ -793,9 +835,9 @@ async function syncToProjectJson(data) {
     const writable = await projectFileHandle.createWritable();
     await writable.write(JSON.stringify(data, null, 2));
     await writable.close();
-    document.getElementById('fileSyncBadge').textContent = '● プロジェクトJSON同期中';
+    setServerBadge('● プロジェクトJSON同期中');
   } catch (e) {
-    document.getElementById('fileSyncBadge').textContent = '● 同期エラー（再連携してください）';
+    setServerBadge('● 同期エラー（再連携してください）');
   }
 }
 
@@ -814,7 +856,7 @@ async function linkProjectJsonFile() {
       multiple: false,
     });
     projectFileHandle = handle;
-    document.getElementById('fileSyncBadge').textContent = `● 連携中: ${handle.name}`;
+    setServerBadge(`● 連携中: ${handle.name}`);
     const data = await autoSave({ forceHistory: true });
     await syncToProjectJson(data);
   } catch (e) {
