@@ -224,6 +224,51 @@
       font-size: 0.7rem;
       cursor: pointer;
     }
+    .milestone-form {
+      margin-top: 8px;
+      display: grid;
+      grid-template-columns: 1fr 140px;
+      gap: 6px;
+    }
+    .milestone-input,
+    .milestone-textarea {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #3b3b5a;
+      background: #131327;
+      color: #dbe2ff;
+      font-size: 0.72rem;
+      padding: 6px 8px;
+    }
+    .milestone-textarea {
+      grid-column: 1 / -1;
+      min-height: 56px;
+      resize: vertical;
+    }
+    .milestone-actions {
+      display: flex;
+      gap: 6px;
+      grid-column: 1 / -1;
+    }
+    .comment-list {
+      margin-top: 7px;
+      max-height: 110px;
+      overflow: auto;
+      display: grid;
+      gap: 4px;
+    }
+    .comment-row {
+      background: #181833;
+      border-radius: 7px;
+      padding: 6px;
+      font-size: 0.7rem;
+      color: #c7ceeb;
+    }
+    .comment-time {
+      color: #95a0c8;
+      font-size: 0.66rem;
+      margin-bottom: 2px;
+    }
 
     .timeline-list {
       max-height: 280px;
@@ -696,6 +741,31 @@ const items = [
   { id: 'framework',  label: 'フレームワーク確立',   cat: 'work',  now: 3, goal: 9 },
 ];
 let progressEvents = [];
+let milestoneRecords = {};
+
+function escHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getMilestoneRecord(item) {
+  if (!milestoneRecords[item.id]) {
+    milestoneRecords[item.id] = {
+      itemId: item.id,
+      itemLabel: item.label,
+      targetTitle: '',
+      targetDate: '',
+      memo: '',
+      comments: [],
+      updatedAt: '',
+    };
+  }
+  return milestoneRecords[item.id];
+}
 
 function formatTs(ts) {
   const d = new Date(ts);
@@ -735,12 +805,32 @@ function renderJourneyBoard() {
   if (!el) return;
   el.innerHTML = items.map(i => {
     const pct = Math.round((Math.max(1, i.now) / 10) * 100);
+    const rec = getMilestoneRecord(i);
+    const commentsHtml = (rec.comments || []).slice(0, 8).map(c => `
+      <div class="comment-row">
+        <div class="comment-time">${formatTs(c.at)}</div>
+        <div>${escHtml(c.text)}</div>
+      </div>
+    `).join('');
     return `
       <div class="journey-card">
         <div class="journey-head"><strong>${i.label}</strong><span>Lv.${i.now} / ${i.goal}</span></div>
         <div class="journey-track"><div class="journey-fill" style="width:${pct}%"></div></div>
         <div class="journey-next">次: ${getDesc(i.id, Math.min(10, i.now + 1)) || '継続'}</div>
-        <button class="mini-btn" onclick="markStepCleared('${i.id}')">この過程をクリアとして記録</button>
+        <div class="milestone-form">
+          <input class="milestone-input" id="target-title-${i.id}" value="${escHtml(rec.targetTitle)}" placeholder="到達目標（例: 英会話で業務説明を英語のみで完了）" />
+          <input class="milestone-input" id="target-date-${i.id}" type="date" value="${escHtml(rec.targetDate)}" />
+          <textarea class="milestone-textarea" id="memo-${i.id}" placeholder="メモ・振り返り">${escHtml(rec.memo)}</textarea>
+          <div class="milestone-actions">
+            <button class="mini-btn" onclick="saveMilestoneMeta('${i.id}')">目標/到達日/メモを保存</button>
+            <button class="mini-btn" onclick="markStepCleared('${i.id}')">この過程をクリアとして記録</button>
+          </div>
+          <input class="milestone-input" id="comment-${i.id}" placeholder="コメントを追加（例: 今日の改善点）" />
+          <div class="milestone-actions">
+            <button class="mini-btn" onclick="addMilestoneComment('${i.id}')">コメント登録</button>
+          </div>
+        </div>
+        <div class="comment-list" id="comment-list-${i.id}">${commentsHtml || '<div class="comment-row">コメントはまだありません。</div>'}</div>
       </div>
     `;
   }).join('');
@@ -767,6 +857,51 @@ function markStepCleared(itemId) {
   addProgressEvent(item, `Lv.${item.now} を過程クリア`, 'manual');
   renderTimeline();
   autoSave({ forceHistory: true });
+}
+
+async function saveMilestoneMeta(itemId) {
+  const item = items.find(i => i.id === itemId);
+  if (!item) return;
+  const targetTitle = (document.getElementById(`target-title-${itemId}`)?.value || '').trim();
+  const targetDate = (document.getElementById(`target-date-${itemId}`)?.value || '').trim();
+  const memo = (document.getElementById(`memo-${itemId}`)?.value || '').trim();
+  milestoneRecords[itemId] = {
+    ...getMilestoneRecord(item),
+    itemId,
+    itemLabel: item.label,
+    targetTitle,
+    targetDate,
+    memo,
+    updatedAt: new Date().toISOString(),
+  };
+  addProgressEvent(item, `目標情報を更新（${targetTitle || '目標未設定'}）`, 'meta');
+  renderJourneyBoard();
+  renderTimeline();
+  await autoSave({ forceHistory: true });
+  if (supabaseSyncConfig) {
+    await saveMilestoneRecordToSupabase(itemId);
+  }
+}
+
+async function addMilestoneComment(itemId) {
+  const input = document.getElementById(`comment-${itemId}`);
+  const text = (input?.value || '').trim();
+  if (!text) return;
+  const item = items.find(i => i.id === itemId);
+  if (!item) return;
+  const at = new Date().toISOString();
+  const rec = getMilestoneRecord(item);
+  rec.comments.unshift({ text, at });
+  rec.comments = rec.comments.slice(0, 100);
+  milestoneRecords[itemId] = rec;
+  addProgressEvent(item, `コメント登録: ${text}`, 'comment');
+  if (input) input.value = '';
+  renderJourneyBoard();
+  renderTimeline();
+  await autoSave({ forceHistory: true });
+  if (supabaseSyncConfig) {
+    await saveCommentToSupabase(itemId, text, at);
+  }
 }
 
 function renderLevelGuide() {
@@ -831,10 +966,12 @@ function normalizeSupabaseConfig(raw) {
   const url = normalizeSupabaseUrl(supa.url || supa.projectUrl || '');
   const anonKey = supa.anonKey || supa.publishableKey || '';
   const table = supa.table || 'app_state';
+  const milestoneTable = supa.milestoneTable || 'goal_milestones';
+  const commentTable = supa.commentTable || 'goal_comments';
   const stateKey = supa.stateKey || 'self_goal_main';
   const writeToken = supa.writeToken || '';
   if (!url || !anonKey) return null;
-  return { url, anonKey, table, stateKey, writeToken };
+  return { url, anonKey, table, milestoneTable, commentTable, stateKey, writeToken };
 }
 
 async function loadSupabaseConfigFromSettingFile() {
@@ -872,6 +1009,14 @@ function supabaseTableUrl(cfg) {
   return `${cfg.url}/rest/v1/${encodeURIComponent(cfg.table)}`;
 }
 
+function supabaseMilestoneTableUrl(cfg) {
+  return `${cfg.url}/rest/v1/${encodeURIComponent(cfg.milestoneTable || 'goal_milestones')}`;
+}
+
+function supabaseCommentTableUrl(cfg) {
+  return `${cfg.url}/rest/v1/${encodeURIComponent(cfg.commentTable || 'goal_comments')}`;
+}
+
 function buildSupabaseHeaders(cfg, includeJson) {
   const headers = {
     apikey: cfg.anonKey,
@@ -884,6 +1029,108 @@ function buildSupabaseHeaders(cfg, includeJson) {
     headers['Content-Type'] = 'application/json';
   }
   return headers;
+}
+
+async function fetchSupabaseMilestonesAndComments() {
+  if (!supabaseSyncConfig) return;
+  const cfg = supabaseSyncConfig;
+  const key = encodeURIComponent(cfg.stateKey);
+  try {
+    const milestoneRes = await fetch(`${supabaseMilestoneTableUrl(cfg)}?state_key=eq.${key}&select=item_id,item_label,target_title,target_date,memo,updated_at`, {
+      headers: buildSupabaseHeaders(cfg, false),
+      cache: 'no-store',
+    });
+    if (!milestoneRes.ok) return;
+    const milestones = await milestoneRes.json();
+
+    const commentRes = await fetch(`${supabaseCommentTableUrl(cfg)}?state_key=eq.${key}&select=item_id,comment_text,commented_at&order=commented_at.desc`, {
+      headers: buildSupabaseHeaders(cfg, false),
+      cache: 'no-store',
+    });
+    const comments = commentRes.ok ? await commentRes.json() : [];
+
+    const next = {};
+    milestones.forEach(r => {
+      next[r.item_id] = {
+        itemId: r.item_id,
+        itemLabel: r.item_label || (items.find(i => i.id === r.item_id)?.label || r.item_id),
+        targetTitle: r.target_title || '',
+        targetDate: r.target_date || '',
+        memo: r.memo || '',
+        updatedAt: r.updated_at || '',
+        comments: [],
+      };
+    });
+
+    comments.forEach(c => {
+      if (!next[c.item_id]) {
+        const found = items.find(i => i.id === c.item_id);
+        next[c.item_id] = {
+          itemId: c.item_id,
+          itemLabel: found ? found.label : c.item_id,
+          targetTitle: '',
+          targetDate: '',
+          memo: '',
+          updatedAt: '',
+          comments: [],
+        };
+      }
+      next[c.item_id].comments.push({ text: c.comment_text || '', at: c.commented_at || new Date().toISOString() });
+    });
+
+    milestoneRecords = { ...milestoneRecords, ...next };
+  } catch (e) {
+    // optional tables may not exist yet
+  }
+}
+
+async function saveMilestoneRecordToSupabase(itemId) {
+  if (!supabaseSyncConfig) return;
+  const item = items.find(i => i.id === itemId);
+  if (!item) return;
+  const r = getMilestoneRecord(item);
+  const cfg = supabaseSyncConfig;
+  const url = `${supabaseMilestoneTableUrl(cfg)}?on_conflict=state_key,item_id`;
+  await fetch(url, {
+    method: 'POST',
+    headers: {
+      ...buildSupabaseHeaders(cfg, true),
+      Prefer: 'resolution=merge-duplicates,return=minimal',
+    },
+    body: JSON.stringify([
+      {
+        state_key: cfg.stateKey,
+        item_id: item.id,
+        item_label: item.label,
+        target_title: r.targetTitle || '',
+        target_date: r.targetDate || null,
+        memo: r.memo || '',
+        updated_at: new Date().toISOString(),
+      },
+    ]),
+  });
+}
+
+async function saveCommentToSupabase(itemId, commentText, commentedAt) {
+  if (!supabaseSyncConfig || !commentText) return;
+  const item = items.find(i => i.id === itemId);
+  const cfg = supabaseSyncConfig;
+  await fetch(supabaseCommentTableUrl(cfg), {
+    method: 'POST',
+    headers: {
+      ...buildSupabaseHeaders(cfg, true),
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify([
+      {
+        state_key: cfg.stateKey,
+        item_id: itemId,
+        item_label: item ? item.label : itemId,
+        comment_text: commentText,
+        commented_at: commentedAt,
+      },
+    ]),
+  });
 }
 
 async function fetchSupabaseState() {
@@ -999,6 +1246,7 @@ async function configureSupabaseSync() {
   const remote = await fetchSupabaseState();
   if (remote?.items) {
     applyData(remote);
+    await fetchSupabaseMilestonesAndComments();
     setInputsFromData(remote);
     renderFromInputs(false);
   }
@@ -1201,6 +1449,7 @@ async function refreshAfterApply() {
   let latest = null;
   if (supabaseSyncConfig) {
     latest = await fetchSupabaseState();
+    await fetchSupabaseMilestonesAndComments();
   } else if (githubSyncConfig) {
     latest = await fetchGitHubRepoState();
   } else if (!IS_GITHUB_PAGES && serverSyncEnabled) {
@@ -1370,6 +1619,9 @@ function applyData(data) {
   if (Array.isArray(data.progressEvents)) {
     progressEvents = data.progressEvents.slice(0, 200);
   }
+  if (data?.milestoneRecords && typeof data.milestoneRecords === 'object') {
+    milestoneRecords = data.milestoneRecords;
+  }
   currentVersion = data?.appMeta?.version || currentVersion;
 }
 
@@ -1384,6 +1636,7 @@ async function autoSave(options = {}) {
     levelGuideByItem: LEVEL_DESCRIPTIONS,
     levelActionsByItem: LEVEL_ACTIONS,
     progressEvents,
+    milestoneRecords,
     items: items.map(i => ({
       id: i.id,
       label: i.label,
@@ -1454,6 +1707,7 @@ async function loadFromBrowserStorage() {
   let supabaseData = null;
   if (supabaseSyncConfig) {
     supabaseData = await fetchSupabaseState();
+    await fetchSupabaseMilestonesAndComments();
   }
 
   let githubData = null;

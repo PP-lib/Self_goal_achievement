@@ -104,6 +104,31 @@ with check (
 
 When configured, the app auto-saves to browser storage and also syncs to Supabase for cross-device access.
 
+### Milestone/Comment storage
+
+The app now stores per-item milestone data:
+
+- target title
+- target date
+- memo
+- comments
+
+Run the latest schema SQL (`infra/supabase/schema_quickstart.sql` or `infra/supabase/schema_secure_token.sql`) to create:
+
+- `goal_milestones`
+- `goal_comments`
+
+Optional `setting.json` keys:
+
+```json
+{
+	"supabase": {
+		"milestoneTable": "goal_milestones",
+		"commentTable": "goal_comments"
+	}
+}
+```
+
 ## Open in GitHub Codespaces
 
 1. Open this repository in GitHub and create a new Codespace.

@@ -2,8 +2,8 @@
 
 ## Files
 
-- schema_quickstart.sql: Simple setup, open anon write policy.
-- schema_secure_token.sql: Write-protected setup using x-app-write-token header.
+- schema_quickstart.sql: Simple setup, open anon write policy. Creates app_state + goal_milestones + goal_comments.
+- schema_secure_token.sql: Write-protected setup using x-app-write-token header. Creates app_state + goal_milestones + goal_comments.
 
 ## Recommended flow
 
@@ -11,6 +11,12 @@
 2. Replace CHANGE_ME_STRONG_TOKEN with your own random string before running.
 3. In the app, open Supabase sync settings and set the same write token.
 4. Save once and verify badge shows Supabase save success.
+
+## New tables
+
+- app_state: existing aggregate state payload.
+- goal_milestones: per item target title/date/memo.
+- goal_comments: per item comments (time-stamped).
 
 ## Notes
 
