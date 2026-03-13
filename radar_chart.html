@@ -273,7 +273,7 @@
 <p class="subtitle">スコア 1〜10　|　ブラウザ内DBに自動保存（履歴5件）</p>
 
 <div class="toolbar">
-  <button class="btn btn-export" onclick="applyEditsNow()">✅ 編集を反映</button>
+  <button class="btn btn-export" id="applyEditsBtn" onclick="applyEditsNow()">✅ 編集を反映</button>
   <button class="btn btn-export" onclick="exportJSON()">⬇ JSONを保存</button>
   <button class="btn btn-import" onclick="document.getElementById('importInput').click()">⬆ JSONを読み込む</button>
   <button class="btn btn-import" onclick="restoreFromHistory()">↺ 履歴から復元</button>
@@ -953,12 +953,14 @@ function scheduleGitHubSync(data) {
 }
 
 async function applyEditsNow() {
+  setApplyButtonBusy(true);
   setServerBadge('● 同期実行中...');
   try {
     const data = await autoSave({ forceHistory: true });
     if (supabaseSyncConfig) {
       const ok = await pushSupabaseState(data);
       if (ok) {
+        await refreshAfterApply();
         setServerBadge('● 編集反映: Supabase同期 完了');
       }
       return;
@@ -966,6 +968,7 @@ async function applyEditsNow() {
     if (githubSyncConfig) {
       const ok = await pushGitHubRepoState(data, 1);
       if (ok) {
+        await refreshAfterApply();
         setServerBadge('● 編集反映: GitHub同期 完了');
       }
       return;
@@ -973,6 +976,7 @@ async function applyEditsNow() {
     if (!IS_GITHUB_PAGES && serverSyncEnabled) {
       const ok = await saveToServerJson(data);
       if (ok) {
+        await refreshAfterApply();
         setServerBadge('● 編集反映: サーバー同期 完了');
       }
       return;
@@ -984,6 +988,52 @@ async function applyEditsNow() {
     }
   } catch (e) {
     setServerBadge('● 編集反映: 失敗');
+  } finally {
+    setApplyButtonBusy(false);
+  }
+}
+
+function setApplyButtonBusy(isBusy) {
+  const btn = document.getElementById('applyEditsBtn');
+  if (!btn) return;
+  btn.disabled = isBusy;
+  btn.style.opacity = isBusy ? '0.65' : '';
+  btn.textContent = isBusy ? '⏳ 反映中...' : '✅ 編集を反映';
+}
+
+function renderFromInputs() {
+  const nowData  = items.map(i => {
+    const v = parseInt(document.getElementById(`now-${i.id}`).value);
+    document.getElementById(`now-val-${i.id}`).textContent = v;
+    document.getElementById(`desc-now-${i.id}`).textContent  = `▶ 現状 Lv.${v}: ${getDesc(i.id, v)}`;
+    document.getElementById(`action-now-${i.id}`).textContent = `   現状アクション: ${getAction(i.id, v)}`;
+    return v;
+  });
+  const goalData = items.map(i => {
+    const v = parseInt(document.getElementById(`goal-${i.id}`).value);
+    document.getElementById(`goal-val-${i.id}`).textContent = v;
+    document.getElementById(`desc-goal-${i.id}`).textContent = `◎ 目標 Lv.${v}: ${getDesc(i.id, v)}`;
+    document.getElementById(`action-goal-${i.id}`).textContent = `   目標アクション: ${getAction(i.id, v)}`;
+    return v;
+  });
+  radarChart.data.datasets[0].data = nowData;
+  radarChart.data.datasets[1].data = goalData;
+  radarChart.update();
+}
+
+async function refreshAfterApply() {
+  let latest = null;
+  if (supabaseSyncConfig) {
+    latest = await fetchSupabaseState();
+  } else if (githubSyncConfig) {
+    latest = await fetchGitHubRepoState();
+  } else if (!IS_GITHUB_PAGES && serverSyncEnabled) {
+    latest = await fetchServerState();
+  }
+  if (latest?.items) {
+    applyData(latest);
+    setInputsFromData(latest);
+    renderFromInputs();
   }
 }
 
@@ -1430,23 +1480,7 @@ loadFromBrowserStorage();
 
 // ── Live update ───────────────────────────────────────────────────────────────
 function update() {
-  const nowData  = items.map(i => {
-    const v = parseInt(document.getElementById(`now-${i.id}`).value);
-    document.getElementById(`now-val-${i.id}`).textContent = v;
-    document.getElementById(`desc-now-${i.id}`).textContent  = `▶ 現状 Lv.${v}: ${getDesc(i.id, v)}`;
-    document.getElementById(`action-now-${i.id}`).textContent = `   現状アクション: ${getAction(i.id, v)}`;
-    return v;
-  });
-  const goalData = items.map(i => {
-    const v = parseInt(document.getElementById(`goal-${i.id}`).value);
-    document.getElementById(`goal-val-${i.id}`).textContent = v;
-    document.getElementById(`desc-goal-${i.id}`).textContent = `◎ 目標 Lv.${v}: ${getDesc(i.id, v)}`;
-    document.getElementById(`action-goal-${i.id}`).textContent = `   目標アクション: ${getAction(i.id, v)}`;
-    return v;
-  });
-  radarChart.data.datasets[0].data = nowData;
-  radarChart.data.datasets[1].data = goalData;
-  radarChart.update();
+  renderFromInputs();
   autoSave();
 }
 
