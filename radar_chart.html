@@ -317,6 +317,7 @@
 <script>
 const STORAGE_KEY = 'selfGoalData_v2';
 const API_STATE_ENDPOINT = '/api/state';
+const IS_GITHUB_PAGES = window.location.hostname.endsWith('github.io');
 let projectFileHandle = null;
 let serverSyncEnabled = false;
 
@@ -602,6 +603,10 @@ function setStoreBadge(text) {
 }
 
 function setServerBadge(text) {
+  if (IS_GITHUB_PAGES && text.includes('失敗')) {
+    document.getElementById('fileSyncBadge').textContent = '● GitHub Pages: 同期APIなし（ブラウザ保存のみ）';
+    return;
+  }
   document.getElementById('fileSyncBadge').textContent = text;
 }
 
@@ -618,6 +623,10 @@ async function fetchServerState() {
 }
 
 async function saveToServerJson(data) {
+  if (IS_GITHUB_PAGES) {
+    setServerBadge('● GitHub Pages: 同期APIなし（ブラウザ保存のみ）');
+    return false;
+  }
   if (!serverSyncEnabled) {
     return false;
   }
@@ -769,7 +778,7 @@ async function loadFromBrowserStorage() {
     return;
   }
 
-  if (window.location.hostname.endsWith('github.io')) {
+  if (IS_GITHUB_PAGES) {
     setServerBadge('● GitHub Pages: 同期APIなし（ブラウザ保存のみ）');
   }
 
