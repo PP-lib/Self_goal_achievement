@@ -277,7 +277,7 @@
   <button class="btn btn-export" onclick="exportJSON()">⬇ JSONを保存</button>
   <button class="btn btn-import" onclick="document.getElementById('importInput').click()">⬆ JSONを読み込む</button>
   <button class="btn btn-import" onclick="restoreFromHistory()">↺ 履歴から復元</button>
-  <button class="btn btn-import" onclick="configureAwsSync()">☁ AWS同期設定</button>
+  <button class="btn btn-import" onclick="configureSupabaseSync()">☁ Supabase同期設定</button>
   <button class="btn btn-import" onclick="configureGitHubSync()">☁ GitHub同期設定</button>
   <button class="btn btn-import" onclick="linkProjectJsonFile()">🔗 プロジェクトJSON連携</button>
   <input type="file" id="importInput" accept=".json" onchange="importJSON(this)" />
@@ -322,13 +322,13 @@ const STORAGE_KEY = 'selfGoalData_v2';
 const API_STATE_ENDPOINT = '/api/state';
 const IS_GITHUB_PAGES = window.location.hostname.endsWith('github.io');
 const GITHUB_SYNC_CONFIG_KEY = 'githubSyncConfig_v1';
-const AWS_SYNC_CONFIG_KEY = 'awsSyncConfig_v1';
+const SUPABASE_SYNC_CONFIG_KEY = 'supabaseSyncConfig_v1';
 let projectFileHandle = null;
 let serverSyncEnabled = false;
-let awsSyncConfig = null;
-let awsSyncTimer = null;
-let awsSyncInFlight = false;
-let awsPendingData = null;
+let supabaseSyncConfig = null;
+let supabaseSyncTimer = null;
+let supabaseSyncInFlight = false;
+let supabasePendingData = null;
 let githubSyncConfig = null;
 let githubSyncTimer = null;
 let githubSyncInFlight = false;
@@ -657,6 +657,162 @@ function base64ToUtf8(str) {
   return decodeURIComponent(escape(atob(str)));
 }
 
+function normalizeSupabaseUrl(url) {
+  return (url || '').trim().replace(/\/+$/, '');
+}
+
+function loadSupabaseSyncConfig() {
+  try {
+    const raw = localStorage.getItem(SUPABASE_SYNC_CONFIG_KEY);
+    if (!raw) return null;
+    const cfg = JSON.parse(raw);
+    if (!cfg?.url || !cfg?.anonKey || !cfg?.table || !cfg?.stateKey) return null;
+    return {
+      url: normalizeSupabaseUrl(cfg.url),
+      anonKey: cfg.anonKey,
+      table: cfg.table,
+      stateKey: cfg.stateKey,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveSupabaseSyncConfig(cfg) {
+  localStorage.setItem(SUPABASE_SYNC_CONFIG_KEY, JSON.stringify(cfg));
+}
+
+function clearSupabaseSyncConfig() {
+  localStorage.removeItem(SUPABASE_SYNC_CONFIG_KEY);
+  supabaseSyncConfig = null;
+  setServerBadge('● Supabase同期: 未設定');
+}
+
+function supabaseTableUrl(cfg) {
+  return `${cfg.url}/rest/v1/${encodeURIComponent(cfg.table)}`;
+}
+
+async function fetchSupabaseState() {
+  if (!supabaseSyncConfig) return null;
+  const cfg = supabaseSyncConfig;
+  const key = encodeURIComponent(cfg.stateKey);
+  const url = `${supabaseTableUrl(cfg)}?state_key=eq.${key}&select=payload,updated_at&limit=1`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        apikey: cfg.anonKey,
+        Authorization: `Bearer ${cfg.anonKey}`,
+      },
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      setServerBadge(`● Supabase同期: 読込失敗 (${res.status})`);
+      return null;
+    }
+    const rows = await res.json();
+    const payload = Array.isArray(rows) && rows[0] ? rows[0].payload : null;
+    if (payload?.items) {
+      setServerBadge('● Supabase同期: 有効');
+      return payload;
+    }
+    setServerBadge('● Supabase同期: 有効（初回保存待ち）');
+    return null;
+  } catch (e) {
+    setServerBadge('● Supabase同期: 読込失敗');
+    return null;
+  }
+}
+
+async function pushSupabaseState(data) {
+  if (!supabaseSyncConfig) return false;
+  const cfg = supabaseSyncConfig;
+  const url = `${supabaseTableUrl(cfg)}?on_conflict=state_key`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        apikey: cfg.anonKey,
+        Authorization: `Bearer ${cfg.anonKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify([
+        {
+          state_key: cfg.stateKey,
+          payload: data,
+          updated_at: new Date().toISOString(),
+        },
+      ]),
+    });
+    if (!res.ok) {
+      setServerBadge(`● Supabase同期: 保存失敗 (${res.status})`);
+      return false;
+    }
+    setServerBadge('● Supabase同期: 保存成功');
+    return true;
+  } catch (e) {
+    setServerBadge('● Supabase同期: 保存失敗');
+    return false;
+  }
+}
+
+function scheduleSupabaseSync(data) {
+  if (!supabaseSyncConfig) return;
+  supabasePendingData = data;
+  if (supabaseSyncTimer) clearTimeout(supabaseSyncTimer);
+  supabaseSyncTimer = setTimeout(async () => {
+    if (supabaseSyncInFlight || !supabasePendingData) return;
+    supabaseSyncInFlight = true;
+    const payload = supabasePendingData;
+    supabasePendingData = null;
+    try {
+      await pushSupabaseState(payload);
+    } finally {
+      supabaseSyncInFlight = false;
+      if (supabasePendingData) {
+        scheduleSupabaseSync(supabasePendingData);
+      }
+    }
+  }, 2000);
+}
+
+async function configureSupabaseSync() {
+  const useSync = confirm('Supabaseへ自動保存しますか?\nOK: 設定する / キャンセル: 解除');
+  if (!useSync) {
+    clearSupabaseSyncConfig();
+    return;
+  }
+
+  const current = supabaseSyncConfig || {
+    url: '',
+    anonKey: '',
+    table: 'app_state',
+    stateKey: 'self_goal_main',
+  };
+
+  const url = normalizeSupabaseUrl(prompt('Supabase Project URL (https://xxxx.supabase.co)', current.url));
+  if (!url) return;
+  const anonKey = prompt('Supabase anon key', current.anonKey || '');
+  if (!anonKey) {
+    alert('anon key が必要です。');
+    return;
+  }
+  const table = prompt('table name', current.table);
+  if (!table) return;
+  const stateKey = prompt('state key', current.stateKey);
+  if (!stateKey) return;
+
+  supabaseSyncConfig = { url, anonKey, table, stateKey };
+  saveSupabaseSyncConfig(supabaseSyncConfig);
+
+  const remote = await fetchSupabaseState();
+  if (remote?.items) {
+    applyData(remote);
+    setInputsFromData(remote);
+    update();
+  }
+}
+
 function loadGitHubSyncConfig() {
   try {
     const raw = localStorage.getItem(GITHUB_SYNC_CONFIG_KEY);
@@ -772,6 +928,13 @@ async function applyEditsNow() {
   setServerBadge('● 同期実行中...');
   try {
     const data = await autoSave({ forceHistory: true });
+    if (supabaseSyncConfig) {
+      const ok = await pushSupabaseState(data);
+      if (ok) {
+        setServerBadge('● 編集反映: Supabase同期 完了');
+      }
+      return;
+    }
     if (githubSyncConfig) {
       const ok = await pushGitHubRepoState(data, 1);
       if (ok) {
@@ -997,14 +1160,20 @@ async function autoSave(options = {}) {
   if (projectFileHandle) {
     await syncToProjectJson(data);
   }
+  scheduleSupabaseSync(data);
   await saveToServerJson(data);
   scheduleGitHubSync(data);
   return data;
 }
 
 async function loadFromBrowserStorage() {
+  supabaseSyncConfig = loadSupabaseSyncConfig();
+  if (supabaseSyncConfig) {
+    setServerBadge('● Supabase同期: 接続確認中');
+  }
+
   githubSyncConfig = loadGitHubSyncConfig();
-  if (githubSyncConfig) {
+  if (!supabaseSyncConfig && githubSyncConfig) {
     setServerBadge('● GitHub同期: 接続確認中');
   }
 
@@ -1016,6 +1185,11 @@ async function loadFromBrowserStorage() {
     setServerBadge('● GitHub JSON同期: 有効');
     update();
     return;
+  }
+
+  let supabaseData = null;
+  if (supabaseSyncConfig) {
+    supabaseData = await fetchSupabaseState();
   }
 
   let githubData = null;
@@ -1051,13 +1225,15 @@ async function loadFromBrowserStorage() {
     localData = null;
   }
 
-  const candidates = [githubData, staticData, idbData, localData].filter(d => d?.items);
+  const candidates = [supabaseData, githubData, staticData, idbData, localData].filter(d => d?.items);
   if (candidates.length > 0) {
     candidates.sort((a, b) => toTime(b) - toTime(a));
     const selected = candidates[0];
     applyData(selected);
     setInputsFromData(selected);
-    if (selected === githubData) {
+    if (selected === supabaseData) {
+      setStoreBadge('● 保存先: Supabase（全端末同期）');
+    } else if (selected === githubData) {
       setStoreBadge('● 保存先: GitHub JSON（全端末同期）');
     } else if (selected === idbData) {
       setStoreBadge('● 保存先: IndexedDB（前回編集を復元）');
