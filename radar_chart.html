@@ -622,6 +622,16 @@ async function fetchServerState() {
   }
 }
 
+async function fetchStaticScores() {
+  try {
+    const res = await fetch('scores.json', { cache: 'no-store' });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    return null;
+  }
+}
+
 async function saveToServerJson(data) {
   if (IS_GITHUB_PAGES) {
     setServerBadge('● GitHub Pages: 同期APIなし（ブラウザ保存のみ）');
@@ -779,6 +789,15 @@ async function loadFromBrowserStorage() {
   }
 
   if (IS_GITHUB_PAGES) {
+    const staticData = await fetchStaticScores();
+    if (staticData?.items) {
+      applyData(staticData);
+      setInputsFromData(staticData);
+      setStoreBadge('● 保存先: scores.json（GitHub）+ IndexedDB');
+      setServerBadge('● GitHub Pages: scores.jsonを読込');
+      update();
+      return;
+    }
     setServerBadge('● GitHub Pages: 同期APIなし（ブラウザ保存のみ）');
   }
 
