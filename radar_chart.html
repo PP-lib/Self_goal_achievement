@@ -273,6 +273,7 @@
 <p class="subtitle">スコア 1〜10　|　ブラウザ内DBに自動保存（履歴5件）</p>
 
 <div class="toolbar">
+  <button class="btn btn-export" onclick="applyEditsNow()">✅ 編集を反映</button>
   <button class="btn btn-export" onclick="exportJSON()">⬇ JSONを保存</button>
   <button class="btn btn-import" onclick="document.getElementById('importInput').click()">⬆ JSONを読み込む</button>
   <button class="btn btn-import" onclick="restoreFromHistory()">↺ 履歴から復元</button>
@@ -734,6 +735,34 @@ function scheduleGitHubSync(data) {
       }
     }
   }, 2000);
+}
+
+async function applyEditsNow() {
+  setServerBadge('● 同期実行中...');
+  try {
+    const data = await autoSave({ forceHistory: true });
+    if (githubSyncConfig) {
+      const ok = await pushGitHubRepoState(data, 1);
+      if (ok) {
+        setServerBadge('● 編集反映: GitHub同期 完了');
+      }
+      return;
+    }
+    if (!IS_GITHUB_PAGES && serverSyncEnabled) {
+      const ok = await saveToServerJson(data);
+      if (ok) {
+        setServerBadge('● 編集反映: サーバー同期 完了');
+      }
+      return;
+    }
+    if (IS_GITHUB_PAGES) {
+      setServerBadge('● 編集反映: ブラウザ保存 完了');
+    } else {
+      setServerBadge('● 編集反映: ローカル保存 完了');
+    }
+  } catch (e) {
+    setServerBadge('● 編集反映: 失敗');
+  }
 }
 
 async function configureGitHubSync() {
