@@ -142,6 +142,8 @@
 
     .chart-wrapper {
       width: 100%;
+      max-width: 1120px;
+      margin: 0 auto 16px;
       background: #16162a;
       border-radius: 16px;
       padding: 24px;
@@ -269,6 +271,14 @@
 </head>
 <body>
 
+<div class="chart-wrapper">
+  <canvas id="radarChart"></canvas>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot dot-current"></div>現状 Now</div>
+    <div class="legend-item"><div class="legend-dot dot-target"></div>目標 Goal</div>
+  </div>
+</div>
+
 <h1>自己成長レーダーチャート</h1>
 <p class="subtitle">スコア 1〜10　|　ブラウザ内DBに自動保存（履歴5件）</p>
 
@@ -292,15 +302,6 @@
 </section>
 
 <div class="main-layout">
-
-  <div class="chart-wrapper">
-    <canvas id="radarChart"></canvas>
-    <div class="legend">
-      <div class="legend-item"><div class="legend-dot dot-current"></div>現状 Now</div>
-      <div class="legend-item"><div class="legend-dot dot-target"></div>目標 Goal</div>
-    </div>
-  </div>
-
   <div class="controls-wrapper">
     <div class="category-block">
       <div class="category-title cat-study">📚 学習</div>
