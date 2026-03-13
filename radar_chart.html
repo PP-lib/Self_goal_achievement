@@ -320,6 +320,7 @@
 <script>
 const STORAGE_KEY = 'selfGoalData_v2';
 const API_STATE_ENDPOINT = '/api/state';
+const SETTINGS_JSON_PATH = 'setting.json';
 const IS_GITHUB_PAGES = window.location.hostname.endsWith('github.io');
 const GITHUB_SYNC_CONFIG_KEY = 'githubSyncConfig_v1';
 const SUPABASE_SYNC_CONFIG_KEY = 'supabaseSyncConfig_v1';
@@ -661,19 +662,34 @@ function normalizeSupabaseUrl(url) {
   return (url || '').trim().replace(/\/+$/, '');
 }
 
+function normalizeSupabaseConfig(raw) {
+  if (!raw) return null;
+  const supa = raw.supabase || raw;
+  const url = normalizeSupabaseUrl(supa.url || supa.projectUrl || '');
+  const anonKey = supa.anonKey || supa.publishableKey || '';
+  const table = supa.table || 'app_state';
+  const stateKey = supa.stateKey || 'self_goal_main';
+  const writeToken = supa.writeToken || '';
+  if (!url || !anonKey) return null;
+  return { url, anonKey, table, stateKey, writeToken };
+}
+
+async function loadSupabaseConfigFromSettingFile() {
+  try {
+    const res = await fetch(SETTINGS_JSON_PATH, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const cfg = normalizeSupabaseConfig(await res.json());
+    return cfg;
+  } catch (e) {
+    return null;
+  }
+}
+
 function loadSupabaseSyncConfig() {
   try {
     const raw = localStorage.getItem(SUPABASE_SYNC_CONFIG_KEY);
     if (!raw) return null;
-    const cfg = JSON.parse(raw);
-    if (!cfg?.url || !cfg?.anonKey || !cfg?.table || !cfg?.stateKey) return null;
-    return {
-      url: normalizeSupabaseUrl(cfg.url),
-      anonKey: cfg.anonKey,
-      table: cfg.table,
-      stateKey: cfg.stateKey,
-      writeToken: cfg.writeToken || '',
-    };
+    return normalizeSupabaseConfig(JSON.parse(raw));
   } catch (e) {
     return null;
   }
@@ -1179,7 +1195,13 @@ async function autoSave(options = {}) {
 }
 
 async function loadFromBrowserStorage() {
-  supabaseSyncConfig = loadSupabaseSyncConfig();
+  const fileSupabaseConfig = await loadSupabaseConfigFromSettingFile();
+  if (fileSupabaseConfig) {
+    supabaseSyncConfig = fileSupabaseConfig;
+    saveSupabaseSyncConfig(fileSupabaseConfig);
+  } else {
+    supabaseSyncConfig = loadSupabaseSyncConfig();
+  }
   if (supabaseSyncConfig) {
     setServerBadge('● Supabase同期: 接続確認中');
   }

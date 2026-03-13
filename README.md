@@ -3,6 +3,22 @@ management my goals
 
 ## Supabase Sync (Recommended)
 
+You can avoid prompt input by placing config in `setting.json`.
+
+```json
+{
+	"supabase": {
+		"url": "https://<project-ref>.supabase.co",
+		"publishableKey": "sb_publishable_xxx",
+		"table": "app_state",
+		"stateKey": "self_goal_main",
+		"writeToken": "your-token-if-secure-mode"
+	}
+}
+```
+
+On startup, the app tries `setting.json` first and then falls back to saved local settings.
+
 1. Create a Supabase project.
 2. Open SQL Editor and run one of the schema options below.
 

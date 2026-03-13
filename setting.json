@@ -1,0 +1,9 @@
+{
+  "supabase": {
+    "url": "https://jkoqsqnfbtqyqhhkcdyr.supabase.co",
+    "publishableKey": "sb_publishable_h-luvd3DzufGUql3AhXzmQ_UPCevB4d",
+    "table": "app_state",
+    "stateKey": "self_goal_main",
+    "writeToken": "my-very-strong-token-2026"
+  }
+}
