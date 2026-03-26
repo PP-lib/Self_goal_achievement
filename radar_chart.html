@@ -1810,11 +1810,15 @@ async function pushGitHubRepoState(data, retry = 1) {
 
   if (res.status === 409) {
     if (retry <= 0) {
-      setServerBadge('● GitHub同期: 競合エラー');
+      setServerBadge('● GitHub同期: 競合エラー (409)');
       return false;
     }
     await fetchGitHubRepoState();
     return pushGitHubRepoState(data, retry - 1);
+  }
+  if (res.status === 401 || res.status === 403) {
+    setServerBadge(`● GitHub同期: 認証エラー (${res.status})`);
+    return false;
   }
   if (!res.ok) {
     setServerBadge(`● GitHub同期: 保存失敗 (${res.status})`);
@@ -2243,9 +2247,9 @@ async function loadFromBrowserStorage() {
 
   let staticData = null;
   if (IS_GITHUB_PAGES) {
-    staticData = await fetchStaticScores();
     setServerBadge('● GitHub Pages: 同期APIなし（ブラウザ保存のみ）');
   }
+  staticData = await fetchStaticScores();
 
   let idbData = null;
   try {
